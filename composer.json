@@ -2,6 +2,7 @@
     "name": "logiscape/mcp-sdk-php",
     "description": "Model Context Protocol SDK for PHP",
     "type": "library",
+	"license": "MIT",
     "autoload": {
         "psr-4": {
             "Mcp\\": "src/"
