@@ -63,13 +63,11 @@ use RuntimeException;
  */
 class ClientSession extends BaseSession {
     public function __construct(
-        MemoryStream $readStream,
-        MemoryStream $writeStream,
+        private MemoryStream $readStream,
+        private MemoryStream $writeStream,
         private ?float $readTimeout = null,
     ) {
         parent::__construct(
-            readStream: $readStream,
-            writeStream: $writeStream,
             receiveRequestType: ServerRequest::class,
             receiveNotificationType: ServerNotification::class
         );
@@ -78,7 +76,9 @@ class ClientSession extends BaseSession {
     /**
      * Initialize the client session
      */
-    public function initialize(): InitializeResult {
+    private ?InitializeResult $initResult = null;
+    
+    public function initialize(): void {
         $request = new InitializeRequest(
             capabilities: new ClientCapabilities(
                 roots: new ClientRootsCapability(listChanged: true),
@@ -91,19 +91,31 @@ class ClientSession extends BaseSession {
             ),
             protocolVersion: Version::LATEST_PROTOCOL_VERSION
         );
-
+    
         $result = $this->sendRequest($request, InitializeResult::class);
-
+    
         if (!in_array($result->protocolVersion, Version::SUPPORTED_PROTOCOL_VERSIONS)) {
             throw new RuntimeException(
                 "Unsupported protocol version from the server: {$result->protocolVersion}"
             );
         }
-
+    
         $notification = new InitializedNotification();
         $this->sendNotification($notification);
-
-        return $result;
+    
+        // Store the result internally, don't return it.
+        $this->initResult = $result;
+    
+        // Call the parent initialize, which sets isInitialized and starts message processing.
+        parent::initialize();
+    }
+    
+    // Provide a getter if you need access to the InitializeResult later
+    public function getInitializeResult(): InitializeResult {
+        if ($this->initResult === null) {
+            throw new RuntimeException('Session not yet initialized');
+        }
+        return $this->initResult;
     }
 
     /**
@@ -224,4 +236,98 @@ class ClientSession extends BaseSession {
     protected function getReadTimeout(): ?float {
         return $this->readTimeout;
     }
+    
+    protected function startMessageProcessing(): void {
+        // No background processing needed for now.
+        // If you later implement async message loops, start them here.
+    }
+    
+    protected function stopMessageProcessing(): void {
+        // Stop any ongoing background processing if you add it in the future.
+    }
+    
+    protected function writeMessage(\Mcp\Types\JsonRpcMessage $message): void {
+        $json = json_encode($message, JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            throw new \RuntimeException('Failed to encode JSON message: ' . json_last_error_msg());
+        }
+        $this->writeStream->send($json . "\n");
+    }
+    
+    protected function waitForResponse(int $requestId, string $resultType): mixed {
+        $timeout = $this->getReadTimeout();
+        $startTime = microtime(true);
+    
+        while (true) {
+            if ($timeout !== null && (microtime(true) - $startTime) >= $timeout) {
+                throw new \RuntimeException("Timed out waiting for response to request $requestId");
+            }
+    
+            $message = $this->readStream->receive();
+    
+            if ($message === null) {
+                // No message yet, sleep briefly to prevent busy-waiting
+                usleep(10000); 
+                continue;
+            }
+    
+            if ($message instanceof \Exception) {
+                // The stream returned an exception as a message
+                throw $message;
+            }
+    
+            // Expecting $message to be a JSON string representing a JSON-RPC message
+            $data = json_decode($message, true);
+            if ($data === null) {
+                throw new \RuntimeException("Invalid JSON message received: $message");
+            }
+    
+            // Construct a JsonRpcMessage object
+            $jsonRpcMessage = new \Mcp\Types\JsonRpcMessage(
+                jsonrpc: $data['jsonrpc'] ?? '2.0',
+                id: isset($data['id']) ? new \Mcp\Types\RequestId($data['id']) : null,
+                method: $data['method'] ?? null,
+                params: $data['params'] ?? null,
+                result: $data['result'] ?? null,
+                error: $data['error'] ?? null
+            );
+    
+            // Process this message through the base session handler.
+            // If it's a response, handleIncomingMessage() will invoke the response handler.
+            $this->handleIncomingMessage($jsonRpcMessage);
+    
+            // Check if this message is a response to our request.
+            if ($jsonRpcMessage->id !== null && $jsonRpcMessage->id->getValue() === $requestId) {
+                // If there's an error, throw an exception.
+                if ($jsonRpcMessage->error !== null) {
+                    $code = $jsonRpcMessage->error['code'] ?? 0;
+                    $msg = $jsonRpcMessage->error['message'] ?? 'Unknown error';
+                    throw new \RuntimeException("Server returned an error: [{$code}] {$msg}");
+                }
+    
+                // If there’s a result, construct the result object.
+                // Many of your result classes (like InitializeResult, etc.) appear to accept arrays
+                // in their constructors. Adjust as needed if the actual constructor signatures differ.
+                if ($jsonRpcMessage->result === null) {
+                    // Possibly an EmptyResult or no data needed.
+                    if ($resultType === \Mcp\Types\EmptyResult::class) {
+                        return new \Mcp\Types\EmptyResult();
+                    }
+                    return null;
+                }
+    
+                // Construct the result type using the data in $jsonRpcMessage->result.
+                // Assuming the result array keys match the constructor parameters of $resultType.
+                // If the constructors differ, you'll need to manually map fields.
+                if (is_array($jsonRpcMessage->result)) {
+                    return new $resultType(...$jsonRpcMessage->result);
+                } else {
+                    // If result is not an array, you may need to handle it differently.
+                    // This is a fallback scenario.
+                    return new $resultType($jsonRpcMessage->result);
+                }
+            }
+        }
+    }
+    
 }

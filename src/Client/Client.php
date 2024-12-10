@@ -56,7 +56,7 @@ class Client {
     public function connect(
         string $commandOrUrl,
         array $args = [],
-        array $env = [],
+        ?array $env = null,
         ?float $readTimeout = null
     ): ClientSession {
         $urlParts = parse_url($commandOrUrl);

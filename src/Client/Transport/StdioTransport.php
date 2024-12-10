@@ -77,7 +77,6 @@ class StdioTransport {
 
             public function __construct($pipe) {
                 $this->pipe = $pipe;
-                parent::__construct();
             }
 
             public function receive() {
@@ -117,7 +116,6 @@ class StdioTransport {
 
             public function __construct($pipe) {
                 $this->pipe = $pipe;
-                parent::__construct();
             }
 
             public function send($message): void {
