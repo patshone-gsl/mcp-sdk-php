@@ -30,94 +30,7 @@ namespace Mcp\Client\Transport;
 
 use Mcp\Types\JsonRpcMessage;
 use Mcp\Shared\MemoryStream;
-use Mcp\Shared\McpError;
-use Mcp\Shared\ErrorData;
 use RuntimeException;
-use InvalidArgumentException;
-
-/**
- * Parameters for configuring a stdio server connection
- */
-class StdioServerParameters {
-    /**
-     * @param string $command The executable to run to start the server
-     * @param array<string> $args Command line arguments to pass to the executable
-     * @param array<string,string>|null $env The environment to use when spawning the process
-     */
-    public function __construct(
-        private readonly string $command,
-        private readonly array $args = [],
-        private readonly ?array $env = null,
-    ) {
-        if (empty($command)) {
-            throw new InvalidArgumentException('Command cannot be empty');
-        }
-    }
-
-    public function getCommand(): string {
-        return $this->command;
-    }
-
-    public function getArgs(): array {
-        return $this->args;
-    }
-
-    public function getEnv(): ?array {
-        return $this->env;
-    }
-}
-
-/**
- * Gets default environment variables that are safe to inherit
- */
-class EnvironmentHelper {
-    private static array $defaultInheritedEnvVars;
-
-    public static function initialize(): void {
-        self::$defaultInheritedEnvVars = PHP_OS_FAMILY === 'Windows' 
-            ? [
-                'APPDATA',
-                'HOMEDRIVE',
-                'HOMEPATH',
-                'LOCALAPPDATA',
-                'PATH',
-                'PROCESSOR_ARCHITECTURE',
-                'SYSTEMDRIVE',
-                'SYSTEMROOT',
-                'TEMP',
-                'USERNAME',
-                'USERPROFILE',
-            ]
-            : [
-                'HOME',
-                'LOGNAME',
-                'PATH',
-                'SHELL',
-                'TERM',
-                'USER',
-            ];
-    }
-
-    public static function getDefaultEnvironment(): array {
-        $env = [];
-
-        foreach (self::$defaultInheritedEnvVars as $key) {
-            $value = getenv($key);
-            if ($value === false) {
-                continue;
-            }
-
-            if (str_starts_with($value, '()')) {
-                // Skip functions, which are a security risk
-                continue;
-            }
-
-            $env[$key] = $value;
-        }
-
-        return $env;
-    }
-}
 
 /**
  * Manages stdio-based communication with an MCP server process
@@ -132,18 +45,20 @@ class StdioTransport {
 
     /**
      * Opens the connection to the server process
-     * 
+     *
      * @return array{MemoryStream, MemoryStream} Tuple of read and write streams
      */
     public function connect(): array {
         $descriptorSpec = [
             0 => ['pipe', 'r'],  // stdin
             1 => ['pipe', 'w'],  // stdout
-            2 => STDERR         // stderr
+            2 => STDERR          // stderr
         ];
 
+        // Ensure environment initialization is done before using EnvironmentHelper
+        EnvironmentHelper::initialize();
         $env = $this->parameters->getEnv() ?? EnvironmentHelper::getDefaultEnvironment();
-        
+
         $command = escapeshellcmd($this->parameters->getCommand());
         $args = array_map('escapeshellarg', $this->parameters->getArgs());
         $fullCommand = $command . ' ' . implode(' ', $args);
@@ -151,7 +66,7 @@ class StdioTransport {
         $this->process = proc_open($fullCommand, $descriptorSpec, $this->pipes, null, $env);
 
         if ($this->process === false || !is_resource($this->process)) {
-            throw new \RuntimeException("Failed to start process: $fullCommand");
+            throw new RuntimeException("Failed to start process: $fullCommand");
         }
 
         // Set up non-blocking reads on stdout
@@ -159,12 +74,12 @@ class StdioTransport {
 
         $readStream = new class($this->pipes[1]) extends MemoryStream {
             private $pipe;
-            
+
             public function __construct($pipe) {
                 $this->pipe = $pipe;
                 parent::__construct();
             }
-            
+
             public function receive() {
                 $buffer = '';
                 while (!feof($this->pipe)) {
@@ -176,7 +91,7 @@ class StdioTransport {
                         break;
                     }
                     $buffer .= $chunk;
-                    
+
                     if (str_ends_with(trim($buffer), "\n")) {
                         try {
                             $data = json_decode(trim($buffer), true);
@@ -199,12 +114,12 @@ class StdioTransport {
 
         $writeStream = new class($this->pipes[0]) extends MemoryStream {
             private $pipe;
-            
+
             public function __construct($pipe) {
                 $this->pipe = $pipe;
                 parent::__construct();
             }
-            
+
             public function send($message): void {
                 if ($message instanceof JsonRpcMessage) {
                     $json = json_encode($message, JSON_UNESCAPED_SLASHES);
@@ -231,6 +146,3 @@ class StdioTransport {
         }
     }
 }
-
-// Initialize environment variables
-EnvironmentHelper::initialize();
