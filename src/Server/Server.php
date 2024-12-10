@@ -30,6 +30,9 @@ namespace Mcp\Server;
 
 use Mcp\Types\JsonRpcMessage;
 use Mcp\Types\ServerCapabilities;
+use Mcp\Types\ServerPromptsCapability;
+use Mcp\Types\ServerResourcesCapability;
+use Mcp\Types\ServerToolsCapability;
 use Mcp\Types\LoggingLevel;
 use Mcp\Types\RequestId;
 use Mcp\Shared\McpError;
@@ -102,22 +105,22 @@ class Server {
         $loggingCapability = null;
 
         if (isset($this->requestHandlers['prompts/list'])) {
-            $promptsCapability = [
-                'listChanged' => $notificationOptions->promptsChanged
-            ];
+            $promptsCapability = new ServerPromptsCapability(
+                listChanged: $notificationOptions->promptsChanged
+            );
         }
 
         if (isset($this->requestHandlers['resources/list'])) {
-            $resourcesCapability = [
-                'subscribe' => false,
-                'listChanged' => $notificationOptions->resourcesChanged
-            ];
+            $resourcesCapability = new ServerResourcesCapability(
+                listChanged: $notificationOptions->resourcesChanged,
+                subscribe: false
+            );
         }
 
         if (isset($this->requestHandlers['tools/list'])) {
-            $toolsCapability = [
-                'listChanged' => $notificationOptions->toolsChanged
-            ];
+            $toolsCapability = new ServerToolsCapability(
+                listChanged: $notificationOptions->toolsChanged
+            );
         }
 
         if (isset($this->requestHandlers['logging/setLevel'])) {
