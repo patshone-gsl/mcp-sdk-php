@@ -21,26 +21,40 @@
  * @license    MIT License
  * @link       https://github.com/logiscape/mcp-sdk-php
  *
- * Filename: Shared/McpError.php
+ * Filename: Shared/RequestResponder.php
  */
 
 declare(strict_types=1);
 
 namespace Mcp\Shared;
 
-use JsonSerializable;
-use Mcp\Types\McpModel;
-use Mcp\Types\ExtraFieldsTrait;
+use Mcp\Types\JsonRpcMessage;
+use Mcp\Types\RequestId;
+use Mcp\Types\ErrorData;
+use Mcp\Types\ProgressToken;
+use Mcp\Types\ProgressNotification;
 use InvalidArgumentException;
+use RuntimeException;
 
 /**
- * Exception type raised when an error arrives over an MCP connection.
+ * Handles responding to individual requests.
  */
-class McpError extends \Exception {
+class RequestResponder {
+    private bool $responded = false;
+
     public function __construct(
-        public readonly ErrorData $error,
-        ?\Throwable $previous = null
-    ) {
-        parent::__construct($error->message, $error->code, $previous);
+        private readonly RequestId $requestId,
+        private readonly array $params,
+        private readonly mixed $request,
+        private readonly BaseSession $session,
+    ) {}
+
+    public function respond(mixed $response): void {
+        if ($this->responded) {
+            throw new \RuntimeException('Request already responded to');
+        }
+        $this->responded = true;
+
+        $this->session->sendResponse($this->requestId, $response);
     }
 }

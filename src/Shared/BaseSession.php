@@ -37,29 +37,6 @@ use InvalidArgumentException;
 use RuntimeException;
 
 /**
- * Handles responding to individual requests.
- */
-class RequestResponder {
-    private bool $responded = false;
-
-    public function __construct(
-        private readonly RequestId $requestId,
-        private readonly array $params,
-        private readonly mixed $request,
-        private readonly BaseSession $session,
-    ) {}
-
-    public function respond(mixed $response): void {
-        if ($this->responded) {
-            throw new \RuntimeException('Request already responded to');
-        }
-        $this->responded = true;
-
-        $this->session->sendResponse($this->requestId, $response);
-    }
-}
-
-/**
  * Base session for managing MCP communication.
  */
 abstract class BaseSession {

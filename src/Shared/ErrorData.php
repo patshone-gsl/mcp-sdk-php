@@ -21,7 +21,7 @@
  * @license    MIT License
  * @link       https://github.com/logiscape/mcp-sdk-php
  *
- * Filename: Shared/McpError.php
+ * Filename: Shared/ErrorData.php
  */
 
 declare(strict_types=1);
@@ -34,13 +34,25 @@ use Mcp\Types\ExtraFieldsTrait;
 use InvalidArgumentException;
 
 /**
- * Exception type raised when an error arrives over an MCP connection.
+ * Data structure for MCP errors
  */
-class McpError extends \Exception {
+class ErrorData implements McpModel {
+    use ExtraFieldsTrait;
+
     public function __construct(
-        public readonly ErrorData $error,
-        ?\Throwable $previous = null
-    ) {
-        parent::__construct($error->message, $error->code, $previous);
+        public readonly int $code,
+        public readonly string $message,
+        public readonly mixed $data = null,
+    ) {}
+
+    public function validate(): void {
+        if (empty($this->message)) {
+            throw new \InvalidArgumentException('Error message cannot be empty');
+        }
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = get_object_vars($this);
+        return array_merge($data, $this->extraFields);
     }
 }

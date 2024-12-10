@@ -21,26 +21,36 @@
  * @license    MIT License
  * @link       https://github.com/logiscape/mcp-sdk-php
  *
- * Filename: Shared/McpError.php
+ * Filename: Shared/Progress.php
  */
 
 declare(strict_types=1);
 
 namespace Mcp\Shared;
 
-use JsonSerializable;
+use Mcp\Types\ProgressToken;
 use Mcp\Types\McpModel;
-use Mcp\Types\ExtraFieldsTrait;
 use InvalidArgumentException;
 
 /**
- * Exception type raised when an error arrives over an MCP connection.
+ * Progress information model
  */
-class McpError extends \Exception {
+class Progress implements McpModel {
     public function __construct(
-        public readonly ErrorData $error,
-        ?\Throwable $previous = null
-    ) {
-        parent::__construct($error->message, $error->code, $previous);
+        public readonly float $progress,
+        public readonly ?float $total = null,
+    ) {}
+
+    public function validate(): void {
+        if ($this->total !== null && $this->total < $this->progress) {
+            throw new \InvalidArgumentException('Total cannot be less than progress');
+        }
+    }
+
+    public function jsonSerialize(): mixed {
+        return [
+            'progress' => $this->progress,
+            'total' => $this->total,
+        ];
     }
 }

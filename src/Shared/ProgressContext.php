@@ -21,26 +21,43 @@
  * @license    MIT License
  * @link       https://github.com/logiscape/mcp-sdk-php
  *
- * Filename: Shared/McpError.php
+ * Filename: Shared/ProgressContext.php
  */
 
 declare(strict_types=1);
 
 namespace Mcp\Shared;
 
-use JsonSerializable;
+use Mcp\Types\ProgressToken;
 use Mcp\Types\McpModel;
-use Mcp\Types\ExtraFieldsTrait;
 use InvalidArgumentException;
 
 /**
- * Exception type raised when an error arrives over an MCP connection.
+ * Progress tracking context
  */
-class McpError extends \Exception {
+class ProgressContext {
+    private float $current = 0.0;
+
     public function __construct(
-        public readonly ErrorData $error,
-        ?\Throwable $previous = null
-    ) {
-        parent::__construct($error->message, $error->code, $previous);
+        private readonly BaseSession $session,
+        private readonly ProgressToken $progressToken,
+        private readonly ?float $total = null,
+    ) {}
+
+    public function progress(float $amount): void {
+        $this->current += $amount;
+        $this->session->sendProgressNotification(
+            $this->progressToken,
+            $this->current,
+            $this->total
+        );
+    }
+
+    public function getCurrent(): float {
+        return $this->current;
+    }
+
+    public function getTotal(): ?float {
+        return $this->total;
     }
 }
