@@ -21,7 +21,7 @@
  * @license    MIT License
  * @link       https://github.com/logiscape/mcp-sdk-php
  *
- * Filename: Server/Transport/TransportInterface.php
+ * Filename: Server/Transport/Transport.php
  */
 
 declare(strict_types=1);
@@ -29,7 +29,6 @@ declare(strict_types=1);
 namespace Mcp\Server\Transport;
 
 use Mcp\Types\JsonRpcMessage;
-use Mcp\Shared\BaseSession;
 
 /**
  * Base interface for MCP transport implementations
@@ -62,39 +61,4 @@ interface Transport {
      * @throws \Exception if an error occurs while writing
      */
     public function writeMessage(JsonRpcMessage $message): void;
-}
-
-/**
- * Interface for transports that need to buffer output
- */
-interface BufferedTransport extends Transport {
-    /**
-     * Flush any buffered output
-     */
-    public function flush(): void;
-}
-
-/**
- * Interface for transports that support non-blocking operations
- */
-interface NonBlockingTransport extends Transport {
-    /**
-     * Check if the transport has data available to read
-     *
-     * @return bool True if data is available to read
-     */
-    public function hasDataAvailable(): bool;
-}
-
-/**
- * Interface for transports that manage server sessions
- */
-interface SessionAwareTransport extends Transport {
-    /**
-     * Attach a session to the transport
-     *
-     * @param BaseSession $session The session to attach
-     * @throws \RuntimeException if session cannot be attached
-     */
-    public function attachSession(BaseSession $session): void;
 }

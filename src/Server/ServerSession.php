@@ -29,12 +29,12 @@ declare(strict_types=1);
 namespace Mcp\Server;
 
 use Mcp\Shared\BaseSession;
+use Mcp\Shared\Version;
 use Mcp\Types\JsonRpcMessage;
 use Mcp\Types\LoggingLevel;
-use Mcp\Types\ClientCapabilities;
-use Mcp\Types\InitializeRequestParams;
 use Mcp\Types\Implementation;
-use Mcp\Shared\Version;
+use Mcp\Types\ClientRequest;
+use Mcp\Types\ClientNotification;
 use Mcp\Server\InitializationOptions;
 use Mcp\Server\Transport\Transport;
 use Psr\Log\LoggerInterface;
@@ -55,7 +55,7 @@ enum InitializationState: int {
  */
 class ServerSession extends BaseSession {
     private InitializationState $initializationState = InitializationState::NotInitialized;
-    private ?InitializeRequestParams $clientParams = null;
+    private ?object $clientParams = null;
     private LoggerInterface $logger;
 
     public function __construct(
@@ -64,14 +64,18 @@ class ServerSession extends BaseSession {
         ?LoggerInterface $logger = null
     ) {
         $this->logger = $logger ?? new NullLogger();
-        parent::__construct();
+        // Server receives ClientRequest and ClientNotification from the client
+        parent::__construct(
+            receiveRequestType: ClientRequest::class,
+            receiveNotificationType: ClientNotification::class
+        );
     }
 
     public function start(): void {
         if ($this->isInitialized) {
-            throw new \RuntimeException('Session already initialized');
+            throw new RuntimeException('Session already initialized');
         }
-        
+
         $this->isInitialized = true;
         $this->transport->start();
     }
@@ -88,14 +92,13 @@ class ServerSession extends BaseSession {
     /**
      * Check if client supports a specific capability
      */
-    public function checkClientCapability(ClientCapabilities $capability): bool {
+    public function checkClientCapability(\Mcp\Types\ClientCapabilities $capability): bool {
         if ($this->clientParams === null) {
             return false;
         }
 
         $clientCaps = $this->clientParams->capabilities;
 
-        // Check roots capability
         if ($capability->roots !== null) {
             if ($clientCaps->roots === null) {
                 return false;
@@ -105,20 +108,18 @@ class ServerSession extends BaseSession {
             }
         }
 
-        // Check sampling capability
         if ($capability->sampling !== null) {
             if ($clientCaps->sampling === null) {
                 return false;
             }
         }
 
-        // Check experimental capabilities
         if ($capability->experimental !== null) {
             if ($clientCaps->experimental === null) {
                 return false;
             }
             foreach ($capability->experimental as $key => $value) {
-                if (!isset($clientCaps->experimental[$key]) || 
+                if (!isset($clientCaps->experimental[$key]) ||
                     $clientCaps->experimental[$key] !== $value) {
                     return false;
                 }
@@ -135,7 +136,7 @@ class ServerSession extends BaseSession {
         }
 
         if ($this->initializationState !== InitializationState::Initialized) {
-            throw new \RuntimeException('Received request before initialization was complete');
+            throw new RuntimeException('Received request before initialization was complete');
         }
 
         parent::handleRequest($message);
@@ -148,7 +149,7 @@ class ServerSession extends BaseSession {
         }
 
         if ($this->initializationState !== InitializationState::Initialized) {
-            throw new \RuntimeException('Received notification before initialization was complete');
+            throw new RuntimeException('Received notification before initialization was complete');
         }
 
         parent::handleNotification($message);
@@ -174,9 +175,6 @@ class ServerSession extends BaseSession {
         $this->transport->writeMessage($response);
     }
 
-    /**
-     * Send a log message notification
-     */
     public function sendLogMessage(
         LoggingLevel $level,
         mixed $data,
@@ -195,9 +193,6 @@ class ServerSession extends BaseSession {
         $this->transport->writeMessage($notification);
     }
 
-    /**
-     * Send a resource updated notification
-     */
     public function sendResourceUpdated(string $uri): void {
         $notification = new JsonRpcMessage(
             jsonrpc: '2.0',
@@ -208,9 +203,6 @@ class ServerSession extends BaseSession {
         $this->transport->writeMessage($notification);
     }
 
-    /**
-     * Send a progress notification
-     */
     public function sendProgressNotification(
         string|int $progressToken,
         float $progress,
@@ -229,9 +221,6 @@ class ServerSession extends BaseSession {
         $this->transport->writeMessage($notification);
     }
 
-    /**
-     * Send various list changed notifications
-     */
     public function sendResourceListChanged(): void {
         $this->sendNotification('notifications/resources/list_changed');
     }
@@ -252,5 +241,30 @@ class ServerSession extends BaseSession {
         );
 
         $this->transport->writeMessage($notification);
+    }
+
+    /**
+     * Implementing BaseSession abstract methods
+     */
+
+    protected function startMessageProcessing(): void {
+        // The ServerSession uses start() to begin transport processing, so just call it here
+        $this->start();
+    }
+
+    protected function stopMessageProcessing(): void {
+        // Similarly, stop the transport when message processing stops
+        $this->stop();
+    }
+
+    protected function writeMessage(JsonRpcMessage $message): void {
+        // Delegate to the transport
+        $this->transport->writeMessage($message);
+    }
+
+    protected function waitForResponse(int $requestId, string $resultType): mixed {
+        // Typically, the server does not send requests that require waiting for responses.
+        // If this ever happens, you can implement logic similar to ClientSession or simply:
+        throw new RuntimeException('Server does not support waiting for responses from the client.');
     }
 }

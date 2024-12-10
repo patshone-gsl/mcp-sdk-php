@@ -32,6 +32,8 @@ use Mcp\Types\JsonRpcMessage;
 use Mcp\Types\RequestId;
 use Mcp\Shared\McpError;
 use Mcp\Shared\ErrorData;
+use Mcp\Server\Transport\BufferedTransport;
+use Mcp\Server\Transport\NonBlockingTransport;
 use RuntimeException;
 
 /**

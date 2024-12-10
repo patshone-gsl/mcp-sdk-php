@@ -161,6 +161,8 @@ This PHP SDK was developed by:
 - [Josh Abbott](https://joshabbott.com)
 - Claude 3.5 Sonnet (Anthropic AI model)
 
+Additional debugging and refactoring done by Josh Abbott using OpenAI o1
+
 Based on the original [Python SDK](https://github.com/modelcontextprotocol/python-sdk) for the Model Context Protocol.
 
 ## License
