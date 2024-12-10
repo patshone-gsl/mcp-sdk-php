@@ -65,11 +65,14 @@ class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
         }
 
         // Set streams to non-blocking mode
-        if (!stream_set_blocking($this->stdin, false)) {
-            throw new \RuntimeException('Failed to set stdin to non-blocking mode');
-        }
-        if (!stream_set_blocking($this->stdout, false)) {
-            throw new \RuntimeException('Failed to set stdout to non-blocking mode');
+        $os = PHP_OS_FAMILY;
+        if ($os !== 'Windows') {
+            if (!stream_set_blocking($this->stdin, false)) {
+                throw new \RuntimeException('Failed to set stdin to non-blocking mode');
+            }
+            if (!stream_set_blocking($this->stdout, false)) {
+                throw new \RuntimeException('Failed to set stdout to non-blocking mode');
+            }
         }
 
         $this->isStarted = true;
