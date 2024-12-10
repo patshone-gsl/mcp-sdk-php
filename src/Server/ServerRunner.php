@@ -28,7 +28,7 @@ declare(strict_types=1);
 
 namespace Mcp\Server;
 
-use Mcp\Server\Transport\StdioTransport;  // Updated to use class instead of function
+use Mcp\Server\Transport\StdioServerTransport;  // Updated to use class instead of function
 use Mcp\Server\ServerSession;             // Fixed namespace
 use Mcp\Server\Server;                    // Added for server creation
 use Mcp\Server\InitializationOptions;     // Added for initialization
@@ -61,7 +61,7 @@ class ServerRunner {
         }
 
         try {
-            $transport = create_stdio_server();
+            $transport = StdioServerTransport::create();
             $transport->start();
 
             $session = new ServerSession(
@@ -162,18 +162,4 @@ class ServerRunner {
             }
         };
     }
-}
-
-// Example usage
-if (PHP_SAPI === 'cli' && isset($argv[0]) && realpath($argv[0]) === __FILE__) {
-    $server = new Server('mcp');
-    
-    $initOptions = new InitializationOptions(
-        serverName: 'mcp',
-        serverVersion: '1.0.0', // Replace with actual version
-        capabilities: new ServerCapabilities()
-    );
-
-    $runner = new ServerRunner($server, $initOptions);
-    $runner->run();
 }

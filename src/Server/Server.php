@@ -45,17 +45,6 @@ use Psr\Log\NullLogger;
 use RuntimeException;
 
 /**
- * Options for server notifications
- */
-class NotificationOptions {
-    public function __construct(
-        public readonly bool $promptsChanged = false,
-        public readonly bool $resourcesChanged = false,
-        public readonly bool $toolsChanged = false
-    ) {}
-}
-
-/**
  * MCP Server implementation
  */
 class Server {

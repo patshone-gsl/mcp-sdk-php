@@ -37,7 +37,7 @@ use RuntimeException;
 /**
  * STDIO-based transport implementation for MCP servers
  */
-class StdioTransport implements BufferedTransport, NonBlockingTransport {
+class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
     private $stdin;
     private $stdout;
     private array $writeBuffer = [];
@@ -164,11 +164,9 @@ class StdioTransport implements BufferedTransport, NonBlockingTransport {
 
         fflush($this->stdout);
     }
-}
-
-/**
- * Factory function to create a STDIO transport
- */
-function create_stdio_transport(?resource $stdin = null, ?resource $stdout = null): StdioTransport {
-    return new StdioTransport($stdin, $stdout);
+    
+    public static function create(?resource $stdin = null, ?resource $stdout = null): self {
+        return new self($stdin, $stdout);
+    }
+    
 }
