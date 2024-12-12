@@ -62,7 +62,6 @@ class ServerRunner {
 
         try {
             $transport = StdioServerTransport::create();
-            $transport->start();
 
             $session = new ServerSession(
                 $transport,

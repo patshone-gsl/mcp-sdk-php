@@ -203,7 +203,7 @@ class ServerSession extends BaseSession {
         $this->transport->writeMessage($notification);
     }
 
-    public function sendProgressNotification(
+    public function writeProgressNotification(
         string|int $progressToken,
         float $progress,
         ?float $total = null
@@ -222,18 +222,18 @@ class ServerSession extends BaseSession {
     }
 
     public function sendResourceListChanged(): void {
-        $this->sendNotification('notifications/resources/list_changed');
+        $this->writeNotification('notifications/resources/list_changed');
     }
 
     public function sendToolListChanged(): void {
-        $this->sendNotification('notifications/tools/list_changed');
+        $this->writeNotification('notifications/tools/list_changed');
     }
 
     public function sendPromptListChanged(): void {
-        $this->sendNotification('notifications/prompts/list_changed');
+        $this->writeNotification('notifications/prompts/list_changed');
     }
 
-    private function sendNotification(string $method, ?array $params = null): void {
+    private function writeNotification(string $method, ?array $params = null): void {
         $notification = new JsonRpcMessage(
             jsonrpc: '2.0',
             method: $method,

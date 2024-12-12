@@ -52,9 +52,16 @@ class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
      * @param resource|null $stdout Output stream (defaults to STDOUT)
      */
     public function __construct(
-        ?resource $stdin = null,
-        ?resource $stdout = null
+        $stdin = null,
+        $stdout = null
     ) {
+        if ($stdin !== null && !is_resource($stdin)) {
+            throw new \InvalidArgumentException('stdin must be a valid resource.');
+        }
+        if ($stdout !== null && !is_resource($stdout)) {
+            throw new \InvalidArgumentException('stdout must be a valid resource.');
+        }
+
         $this->stdin = $stdin ?? STDIN;
         $this->stdout = $stdout ?? STDOUT;
     }
@@ -63,6 +70,8 @@ class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
         if ($this->isStarted) {
             throw new \RuntimeException('Transport already started');
         }
+
+        echo("StdioServerTransport::start() called\n");
 
         // Set streams to non-blocking mode
         $os = PHP_OS_FAMILY;
@@ -76,6 +85,8 @@ class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
         }
 
         $this->isStarted = true;
+
+        echo("StdioServerTransport::start() completed\n");
     }
 
     public function stop(): void {
@@ -170,7 +181,7 @@ class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
         fflush($this->stdout);
     }
     
-    public static function create(?resource $stdin = null, ?resource $stdout = null): self {
+    public static function create($stdin = null, $stdout = null): self {
         return new self($stdin, $stdout);
     }
     
