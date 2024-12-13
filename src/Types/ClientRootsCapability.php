@@ -29,18 +29,29 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * Structure for client roots capability
+ * Structure for client roots capability.
+ * According to schema:
+ * roots?: {
+ *   listChanged?: boolean
+ *   ...plus arbitrary fields
+ * }
  */
 class ClientRootsCapability implements McpModel {
+    use ExtraFieldsTrait;
+
     public function __construct(
-        public readonly bool $listChanged,
+        public readonly ?bool $listChanged = null
     ) {}
 
     public function validate(): void {
-        // No additional validation needed
+        // No required fields. listChanged is optional.
     }
 
     public function jsonSerialize(): mixed {
-        return ['listChanged' => $this->listChanged];
+        $data = [];
+        if ($this->listChanged !== null) {
+            $data['listChanged'] = $this->listChanged;
+        }
+        return array_merge($data, $this->extraFields);
     }
 }

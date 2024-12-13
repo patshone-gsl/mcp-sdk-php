@@ -29,25 +29,28 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * Describes a message issued to or received from an LLM API
+ * SamplingMessage
+ * {
+ *   role: Role,
+ *   content: TextContent | ImageContent
+ * }
  */
 class SamplingMessage implements McpModel {
     use ExtraFieldsTrait;
 
     public function __construct(
-        public readonly Content $content,
         public readonly Role $role,
+        public readonly TextContent|ImageContent $content,
     ) {}
 
     public function validate(): void {
         $this->content->validate();
-        if (!($this->content instanceof TextContent || $this->content instanceof ImageContent)) {
-            throw new \InvalidArgumentException('Sampling message content must be text or image');
-        }
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
-        return array_merge($data, $this->extraFields);
+        return array_merge([
+            'role' => $this->role->value,
+            'content' => $this->content,
+        ], $this->extraFields);
     }
 }

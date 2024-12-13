@@ -29,13 +29,31 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * Union type for client requests
+ * Union type for client requests:
+ * type ClientRequest =
+ *   | InitializeRequest
+ *   | PingRequest
+ *   | ListResourcesRequest
+ *   | ReadResourceRequest
+ *   | SubscribeRequest
+ *   | UnsubscribeRequest
+ *   | ListPromptsRequest
+ *   | GetPromptRequest
+ *   | ListToolsRequest
+ *   | CallToolRequest
+ *   | SetLevelRequest
+ *   | CompleteRequest
+ *
+ * This acts as a root model for that union.
  */
-class ClientRequest {
+class ClientRequest implements McpModel {
+    use ExtraFieldsTrait;
+
     private Request $request;
 
     public function __construct(Request $request) {
-        if (!($request instanceof InitializeRequest ||
+        if (!(
+            $request instanceof InitializeRequest ||
             $request instanceof PingRequest ||
             $request instanceof ListResourcesRequest ||
             $request instanceof ReadResourceRequest ||
@@ -46,13 +64,23 @@ class ClientRequest {
             $request instanceof ListToolsRequest ||
             $request instanceof CallToolRequest ||
             $request instanceof SetLevelRequest ||
-            $request instanceof CompleteRequest)) {
+            $request instanceof CompleteRequest
+        )) {
             throw new \InvalidArgumentException('Invalid client request type');
         }
         $this->request = $request;
     }
 
+    public function validate(): void {
+        $this->request->validate();
+    }
+
     public function getRequest(): Request {
         return $this->request;
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = $this->request->jsonSerialize();
+        return array_merge((array)$data, $this->extraFields);
     }
 }

@@ -28,9 +28,6 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * A prompt or prompt template that the server offers
- */
 class Prompt implements McpModel {
     use ExtraFieldsTrait;
 
@@ -56,7 +53,15 @@ class Prompt implements McpModel {
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
+        $data = [
+            'name' => $this->name,
+        ];
+        if ($this->description !== null) {
+            $data['description'] = $this->description;
+        }
+        if (!empty($this->arguments)) {
+            $data['arguments'] = $this->arguments;
+        }
         return array_merge($data, $this->extraFields);
     }
 }

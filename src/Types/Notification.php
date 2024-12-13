@@ -36,12 +36,15 @@ abstract class Notification implements McpModel {
 
     public function __construct(
         public readonly string $method,
-        public ?array $params = null,
+        public ?NotificationParams $params = null,
     ) {}
 
     public function validate(): void {
         if (empty($this->method)) {
             throw new \InvalidArgumentException('Notification method cannot be empty');
+        }
+        if ($this->params !== null) {
+            $this->params->validate();
         }
     }
 

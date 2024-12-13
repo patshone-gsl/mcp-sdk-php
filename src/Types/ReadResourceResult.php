@@ -28,27 +28,30 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Result of reading a resource
- */
 class ReadResourceResult extends Result {
     /**
      * @param (TextResourceContents|BlobResourceContents)[] $contents
      */
     public function __construct(
         public readonly array $contents,
-        ?array $meta = null,
+        ?Meta $_meta = null,
     ) {
-        parent::__construct($meta);
+        parent::__construct($_meta);
     }
 
     public function validate(): void {
         parent::validate();
         foreach ($this->contents as $content) {
             if (!($content instanceof TextResourceContents || $content instanceof BlobResourceContents)) {
-                throw new \InvalidArgumentException('Resource contents must be instances of TextResourceContents or BlobResourceContents');
+                throw new \InvalidArgumentException('Contents must be TextResourceContents or BlobResourceContents');
             }
             $content->validate();
         }
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = parent::jsonSerialize();
+        $data['contents'] = $this->contents;
+        return $data;
     }
 }

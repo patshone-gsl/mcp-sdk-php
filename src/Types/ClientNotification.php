@@ -29,24 +29,44 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * Union type for client notifications
+ * Union type for client notifications:
+ * type ClientNotification =
+ *   | CancelledNotification
+ *   | InitializedNotification
+ *   | ProgressNotification
+ *   | RootsListChangedNotification
+ *
+ * This acts as a root model for that union.
  */
-class ClientNotification {
+class ClientNotification implements McpModel {
+    use ExtraFieldsTrait;
+
     private Notification $notification;
 
     public function __construct(
         Notification $notification
     ) {
-        if (!($notification instanceof CancelledNotification ||
+        if (!(
+            $notification instanceof CancelledNotification ||
             $notification instanceof InitializedNotification ||
             $notification instanceof ProgressNotification ||
-            $notification instanceof RootsListChangedNotification)) {
+            $notification instanceof RootsListChangedNotification
+        )) {
             throw new \InvalidArgumentException('Invalid client notification type');
         }
         $this->notification = $notification;
     }
 
+    public function validate(): void {
+        $this->notification->validate();
+    }
+
     public function getNotification(): Notification {
         return $this->notification;
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = $this->notification->jsonSerialize();
+        return array_merge((array)$data, $this->extraFields);
     }
 }

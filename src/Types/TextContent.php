@@ -29,12 +29,12 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * Text content provided to or from an LLM
+ * Text content for messages
  */
 class TextContent extends Content {
     public function __construct(
         public readonly string $text,
-        ?array $annotations = null,
+        ?Annotations $annotations = null,
     ) {
         parent::__construct('text', $annotations);
     }
@@ -43,5 +43,14 @@ class TextContent extends Content {
         if (empty($this->text)) {
             throw new \InvalidArgumentException('Text content cannot be empty');
         }
+        if ($this->annotations !== null) {
+            $this->annotations->validate();
+        }
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = parent::jsonSerialize();
+        $data['text'] = $this->text;
+        return $data;
     }
 }

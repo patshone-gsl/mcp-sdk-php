@@ -28,9 +28,6 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Result of listing available prompts
- */
 class ListPromptsResult extends PaginatedResult {
     /**
      * @param Prompt[] $prompts
@@ -38,9 +35,9 @@ class ListPromptsResult extends PaginatedResult {
     public function __construct(
         public readonly array $prompts,
         ?string $nextCursor = null,
-        ?array $meta = null,
+        ?Meta $_meta = null,
     ) {
-        parent::__construct($nextCursor, $meta);
+        parent::__construct($nextCursor, $_meta);
     }
 
     public function validate(): void {
@@ -51,5 +48,11 @@ class ListPromptsResult extends PaginatedResult {
             }
             $prompt->validate();
         }
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = parent::jsonSerialize();
+        $data['prompts'] = $this->prompts;
+        return $data;
     }
 }

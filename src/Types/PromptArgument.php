@@ -28,9 +28,6 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Describes an argument that a prompt can accept
- */
 class PromptArgument implements McpModel {
     use ExtraFieldsTrait;
 
@@ -47,7 +44,15 @@ class PromptArgument implements McpModel {
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
+        $data = [
+            'name' => $this->name,
+        ];
+        if ($this->description !== null) {
+            $data['description'] = $this->description;
+        }
+        if ($this->required) {
+            $data['required'] = $this->required;
+        }
         return array_merge($data, $this->extraFields);
     }
 }

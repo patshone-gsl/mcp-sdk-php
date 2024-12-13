@@ -28,9 +28,6 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Result of listing available tools
- */
 class ListToolsResult extends PaginatedResult {
     /**
      * @param Tool[] $tools
@@ -38,9 +35,9 @@ class ListToolsResult extends PaginatedResult {
     public function __construct(
         public readonly array $tools,
         ?string $nextCursor = null,
-        ?array $meta = null,
+        ?Meta $_meta = null,
     ) {
-        parent::__construct($nextCursor, $meta);
+        parent::__construct($nextCursor, $_meta);
     }
 
     public function validate(): void {
@@ -51,5 +48,11 @@ class ListToolsResult extends PaginatedResult {
             }
             $tool->validate();
         }
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = parent::jsonSerialize();
+        $data['tools'] = $this->tools;
+        return $data;
     }
 }

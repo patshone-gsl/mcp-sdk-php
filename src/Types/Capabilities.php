@@ -30,16 +30,23 @@ namespace Mcp\Types;
 
 /**
  * Base class for capabilities
+ * According to schema:
+ * capabilities?: {
+ *   experimental?: { [key: string]: object }
+ *   ...and more fields in subclasses
+ * }
  */
 abstract class Capabilities implements McpModel {
     use ExtraFieldsTrait;
 
     public function __construct(
-        public ?array $experimental = null,
+        public ?ExperimentalCapabilities $experimental = null,
     ) {}
 
     public function validate(): void {
-        // No validation needed for base capabilities
+        if ($this->experimental !== null) {
+            $this->experimental->validate();
+        }
     }
 
     public function jsonSerialize(): mixed {

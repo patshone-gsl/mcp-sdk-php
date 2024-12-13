@@ -30,26 +30,25 @@ namespace Mcp\Types;
 
 /**
  * Result of a create message request
+ * content: TextContent | ImageContent
  */
 class CreateMessageResult extends Result {
     public function __construct(
-        public readonly Content $content,
+        public readonly TextContent|ImageContent $content,
         public readonly string $model,
         public readonly Role $role,
         public ?string $stopReason = null,
-        ?array $meta = null,
+        ?Meta $_meta = null,
     ) {
-        parent::__construct($meta);
+        parent::__construct($_meta);
     }
 
     public function validate(): void {
         parent::validate();
-        if (!($this->content instanceof TextContent || $this->content instanceof ImageContent)) {
-            throw new \InvalidArgumentException('Message content must be instance of TextContent or ImageContent');
-        }
         $this->content->validate();
         if (empty($this->model)) {
             throw new \InvalidArgumentException('Model name cannot be empty');
         }
+        // role is an enum, no validation needed unless empty check wanted
     }
 }

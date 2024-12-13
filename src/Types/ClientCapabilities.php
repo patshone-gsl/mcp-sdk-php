@@ -30,12 +30,21 @@ namespace Mcp\Types;
 
 /**
  * Client capabilities
+ * 
+ * According to schema:
+ * ClientCapabilities {
+ *   experimental?: { ... },        // handled by parent class
+ *   roots?: { listChanged?: bool }, 
+ *   sampling?: object
+ * }
+ * 
+ * We have a SamplingCapability class for sampling.
  */
 class ClientCapabilities extends Capabilities {
     public function __construct(
         public ?ClientRootsCapability $roots = null,
-        public ?array $sampling = null,  // Allows any additional properties
-        ?array $experimental = null,
+        public ?SamplingCapability $sampling = null,
+        ?ExperimentalCapabilities $experimental = null,
     ) {
         parent::__construct($experimental);
     }
@@ -45,5 +54,19 @@ class ClientCapabilities extends Capabilities {
         if ($this->roots !== null) {
             $this->roots->validate();
         }
+        if ($this->sampling !== null) {
+            $this->sampling->validate();
+        }
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = parent::jsonSerialize();
+        if ($this->roots !== null) {
+            $data['roots'] = $this->roots;
+        }
+        if ($this->sampling !== null) {
+            $data['sampling'] = $this->sampling;
+        }
+        return $data;
     }
 }

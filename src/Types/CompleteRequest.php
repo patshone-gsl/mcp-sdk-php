@@ -30,10 +30,12 @@ namespace Mcp\Types;
 
 /**
  * Request for completion options
+ * argument: { name: string, value: string }
+ * ref: PromptReference | ResourceReference
  */
 class CompleteRequest extends Request {
     public function __construct(
-        public readonly array $argument,
+        public readonly CompletionArgument $argument,
         public readonly PromptReference|ResourceReference $ref,
     ) {
         parent::__construct('completion/complete');
@@ -41,12 +43,7 @@ class CompleteRequest extends Request {
 
     public function validate(): void {
         parent::validate();
-        if (!isset($this->argument['name']) || !isset($this->argument['value'])) {
-            throw new \InvalidArgumentException('Completion argument must have name and value');
-        }
-        if (empty($this->argument['name']) || empty($this->argument['value'])) {
-            throw new \InvalidArgumentException('Completion argument name and value cannot be empty');
-        }
+        $this->argument->validate();
         $this->ref->validate();
     }
 }

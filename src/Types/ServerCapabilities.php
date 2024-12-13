@@ -30,14 +30,23 @@ namespace Mcp\Types;
 
 /**
  * Server capabilities
+ * According to the schema:
+ * ServerCapabilities {
+ *   experimental?: { ... },
+ *   logging?: object,
+ *   prompts?: { listChanged?: boolean },
+ *   resources?: { subscribe?: boolean, listChanged?: boolean },
+ *   tools?: { listChanged?: boolean },
+ *   [key: string]: unknown
+ * }
  */
 class ServerCapabilities extends Capabilities {
     public function __construct(
-        public ?array $logging = null,  // Allows any additional properties
+        public ?ServerLoggingCapability $logging = null,
         public ?ServerPromptsCapability $prompts = null,
         public ?ServerResourcesCapability $resources = null,
         public ?ServerToolsCapability $tools = null,
-        ?array $experimental = null,
+        ?ExperimentalCapabilities $experimental = null,
     ) {
         parent::__construct($experimental);
     }
@@ -53,5 +62,25 @@ class ServerCapabilities extends Capabilities {
         if ($this->tools !== null) {
             $this->tools->validate();
         }
+        if ($this->logging !== null) {
+            $this->logging->validate();
+        }
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = parent::jsonSerialize();
+        if ($this->logging !== null) {
+            $data['logging'] = $this->logging;
+        }
+        if ($this->prompts !== null) {
+            $data['prompts'] = $this->prompts;
+        }
+        if ($this->resources !== null) {
+            $data['resources'] = $this->resources;
+        }
+        if ($this->tools !== null) {
+            $data['tools'] = $this->tools;
+        }
+        return $data;
     }
 }

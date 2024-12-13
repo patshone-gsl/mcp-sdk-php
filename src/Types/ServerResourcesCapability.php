@@ -29,22 +29,34 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * Structure for server resources capability
+ * Structure for server resources capability.
+ * According to the schema:
+ * resources?: {
+ *   subscribe?: boolean;
+ *   listChanged?: boolean;
+ *   [key: string]: unknown;
+ * }
  */
 class ServerResourcesCapability implements McpModel {
+    use ExtraFieldsTrait;
+
     public function __construct(
-        public readonly bool $listChanged,
-        public readonly bool $subscribe,
+        public readonly ?bool $listChanged = null,
+        public readonly ?bool $subscribe = null,
     ) {}
 
     public function validate(): void {
-        // No additional validation needed
+        // No required fields.
     }
 
     public function jsonSerialize(): mixed {
-        return [
-            'listChanged' => $this->listChanged,
-            'subscribe' => $this->subscribe,
-        ];
+        $data = [];
+        if ($this->listChanged !== null) {
+            $data['listChanged'] = $this->listChanged;
+        }
+        if ($this->subscribe !== null) {
+            $data['subscribe'] = $this->subscribe;
+        }
+        return array_merge($data, $this->extraFields);
     }
 }

@@ -30,22 +30,19 @@ namespace Mcp\Types;
 
 /**
  * Result of a completion request
+ * completion: { values: string[], total?: number, hasMore?: boolean }
  */
 class CompleteResult extends Result {
     public function __construct(
-        public readonly array $completion,
-        ?array $meta = null,
+        public readonly CompletionObject $completion,
+        ?Meta $_meta = null,
     ) {
-        parent::__construct($meta);
+        parent::__construct($_meta);
     }
 
     public function validate(): void {
         parent::validate();
-        if (!isset($this->completion['values']) || !is_array($this->completion['values'])) {
-            throw new \InvalidArgumentException('Completion must have values array');
-        }
-        if (count($this->completion['values']) > 100) {
-            throw new \InvalidArgumentException('Completion values cannot exceed 100 items');
-        }
+        $this->completion->validate();
     }
+}
 }

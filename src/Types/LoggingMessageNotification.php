@@ -28,22 +28,17 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Notification for logging messages
- */
 class LoggingMessageNotification extends Notification {
     public function __construct(
-        public readonly mixed $data,
-        public readonly LoggingLevel $level,
-        public ?string $logger = null,
+        LoggingMessageNotificationParams $params
     ) {
-        parent::__construct('notifications/message');
+        parent::__construct('notifications/message', $params);
     }
 
     public function validate(): void {
         parent::validate();
-        if ($this->data === null) {
-            throw new \InvalidArgumentException('Logging message data cannot be null');
+        if ($this->params !== null) {
+            $this->params->validate();
         }
     }
 }

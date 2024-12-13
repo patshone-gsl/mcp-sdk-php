@@ -34,8 +34,17 @@ namespace Mcp\Types;
 abstract class PaginatedRequest extends Request {
     public function __construct(
         string $method,
-        public ?string $cursor = null,
+        ?string $cursor = null,
     ) {
-        parent::__construct($method);
+        // Instead of passing cursor directly to Request, we create PaginatedRequestParams
+        // and pass as params.
+        parent::__construct($method, new PaginatedRequestParams($cursor));
+    }
+
+    public function validate(): void {
+        parent::validate();
+        if ($this->params !== null && $this->params instanceof PaginatedRequestParams) {
+            $this->params->validate();
+        }
     }
 }

@@ -28,21 +28,17 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Request to get a specific prompt
- */
 class GetPromptRequest extends Request {
     public function __construct(
-        public readonly string $name,
-        public ?array $arguments = null,
+        GetPromptRequestParams $params
     ) {
-        parent::__construct('prompts/get');
+        parent::__construct('prompts/get', $params);
     }
 
     public function validate(): void {
         parent::validate();
-        if (empty($this->name)) {
-            throw new \InvalidArgumentException('Prompt name cannot be empty');
+        if ($this->params !== null) {
+            $this->params->validate();
         }
     }
 }

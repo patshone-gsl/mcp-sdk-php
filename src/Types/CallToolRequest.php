@@ -34,7 +34,7 @@ namespace Mcp\Types;
 class CallToolRequest extends Request {
     public function __construct(
         public readonly string $name,
-        public ?array $arguments = null,
+        public ?ToolArguments $arguments = null,
     ) {
         parent::__construct('tools/call');
     }
@@ -43,6 +43,9 @@ class CallToolRequest extends Request {
         parent::validate();
         if (empty($this->name)) {
             throw new \InvalidArgumentException('Tool name cannot be empty');
+        }
+        if ($this->arguments !== null) {
+            $this->arguments->validate();
         }
     }
 }

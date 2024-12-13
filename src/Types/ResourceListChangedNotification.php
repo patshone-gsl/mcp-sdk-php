@@ -28,11 +28,14 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Notification for resource list changes
- */
 class ResourceListChangedNotification extends Notification {
     public function __construct() {
+        // No params according to schema
         parent::__construct('notifications/resources/list_changed');
+    }
+
+    public function validate(): void {
+        parent::validate();
+        // No params to validate
     }
 }

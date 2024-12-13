@@ -28,18 +28,15 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Server's response to initialization request
- */
 class InitializeResult extends Result {
     public function __construct(
         public readonly ServerCapabilities $capabilities,
         public readonly Implementation $serverInfo,
         public readonly string $protocolVersion,
         public ?string $instructions = null,
-        ?array $meta = null,
+        ?Meta $_meta = null,
     ) {
-        parent::__construct($meta);
+        parent::__construct($_meta);
     }
 
     public function validate(): void {
@@ -49,5 +46,16 @@ class InitializeResult extends Result {
         if (empty($this->protocolVersion)) {
             throw new \InvalidArgumentException('Protocol version cannot be empty');
         }
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = parent::jsonSerialize();
+        $data['capabilities'] = $this->capabilities;
+        $data['serverInfo'] = $this->serverInfo;
+        $data['protocolVersion'] = $this->protocolVersion;
+        if ($this->instructions !== null) {
+            $data['instructions'] = $this->instructions;
+        }
+        return $data;
     }
 }

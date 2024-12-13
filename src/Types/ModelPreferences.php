@@ -28,9 +28,6 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * The server's preferences for model selection
- */
 class ModelPreferences implements McpModel {
     use ExtraFieldsTrait;
 
@@ -59,7 +56,19 @@ class ModelPreferences implements McpModel {
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
+        $data = [];
+        if ($this->costPriority !== null) {
+            $data['costPriority'] = $this->costPriority;
+        }
+        if ($this->speedPriority !== null) {
+            $data['speedPriority'] = $this->speedPriority;
+        }
+        if ($this->intelligencePriority !== null) {
+            $data['intelligencePriority'] = $this->intelligencePriority;
+        }
+        if (!empty($this->hints)) {
+            $data['hints'] = $this->hints;
+        }
         return array_merge($data, $this->extraFields);
     }
 }

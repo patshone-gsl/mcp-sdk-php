@@ -29,24 +29,25 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * Base type for all request IDs
+ * A request ID can be a string or a number.
  */
 class RequestId implements McpModel {
+    use ExtraFieldsTrait;
+
     public function __construct(
-        private string|int $id,
+        public string|int $value
     ) {}
 
-    public function getValue(): string|int {
-        return $this->id;
-    }
-
     public function validate(): void {
-        if (is_string($this->id) && empty($this->id)) {
-            throw new \InvalidArgumentException('Request ID string cannot be empty');
+        // No specific validation besides non-empty. 
+        // The schema allows string or number. We consider both valid.
+        if ($this->value === '') {
+            throw new \InvalidArgumentException('RequestId cannot be empty');
         }
     }
 
     public function jsonSerialize(): mixed {
-        return $this->id;
+        // Just serialize the value directly, plus any extra fields.
+        return $this->value;
     }
 }

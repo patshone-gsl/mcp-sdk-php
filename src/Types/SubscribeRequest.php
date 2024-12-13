@@ -28,20 +28,17 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Request to subscribe to resource updates
- */
 class SubscribeRequest extends Request {
     public function __construct(
-        public readonly string $uri,
+        string $uri
     ) {
-        parent::__construct('resources/subscribe');
+        parent::__construct('resources/subscribe', new SubscribeRequestParams($uri));
     }
 
     public function validate(): void {
         parent::validate();
-        if (empty($this->uri)) {
-            throw new \InvalidArgumentException('Resource URI cannot be empty');
+        if ($this->params instanceof SubscribeRequestParams) {
+            $this->params->validate();
         }
     }
 }

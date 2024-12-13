@@ -28,9 +28,6 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Progress token for tracking long-running operations
- */
 class ProgressToken implements McpModel {
     public function __construct(
         private string|int $token,
@@ -41,9 +38,10 @@ class ProgressToken implements McpModel {
     }
 
     public function validate(): void {
-        if (is_string($this->token) && empty($this->token)) {
+        if (is_string($this->token) && $this->token === '') {
             throw new \InvalidArgumentException('Progress token string cannot be empty');
         }
+        // Numeric zero is allowed; empty string is not.
     }
 
     public function jsonSerialize(): mixed {

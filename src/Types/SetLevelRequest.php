@@ -28,13 +28,17 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Request to set logging level
- */
 class SetLevelRequest extends Request {
     public function __construct(
-        public readonly LoggingLevel $level,
+        LoggingLevel $level
     ) {
-        parent::__construct('logging/setLevel');
+        parent::__construct('logging/setLevel', new SetLevelRequestParams($level));
+    }
+
+    public function validate(): void {
+        parent::validate();
+        if ($this->params instanceof SetLevelRequestParams) {
+            $this->params->validate();
+        }
     }
 }

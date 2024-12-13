@@ -29,59 +29,39 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * JSON-RPC message envelope
+ * JSON-RPC message is a union of:
+ * - JSONRPCRequest
+ * - JSONRPCNotification
+ * - JSONRPCResponse
+ * - JSONRPCError
+ *
+ * This class acts as a RootModel for that union.
  */
 class JsonRpcMessage implements McpModel {
+    use ExtraFieldsTrait;
+
+    /**
+     * We store one of the four possible variants.
+     */
     public function __construct(
-        public readonly string $jsonrpc = '2.0',
-        public ?RequestId $id = null,
-        public ?string $method = null,
-        public ?array $params = null,
-        public ?Result $result = null,
-        public ?array $error = null,
+        public readonly JSONRPCRequest|JSONRPCNotification|JSONRPCResponse|JSONRPCError $message
     ) {}
 
     public function validate(): void {
-        if ($this->jsonrpc !== '2.0') {
-            throw new \InvalidArgumentException('JSON-RPC version must be "2.0"');
-        }
-
-        if ($this->error !== null) {
-            if (!isset($this->error['code']) || !isset($this->error['message'])) {
-                throw new \InvalidArgumentException('JSON-RPC error must have code and message');
-            }
-        }
-
-        if ($this->id !== null) {
-            $this->id->validate();
-        }
-
-        if ($this->result !== null) {
-            $this->result->validate();
-        }
+        $this->message->validate();
     }
 
     public function jsonSerialize(): mixed {
-        $data = [
-            'jsonrpc' => $this->jsonrpc,
-        ];
+        // Just serialize the underlying message variant.
+        $data = $this->message->jsonSerialize();
 
-        if ($this->id !== null) {
-            $data['id'] = $this->id;
-        }
-        if ($this->method !== null) {
-            $data['method'] = $this->method;
-        }
-        if ($this->params !== null) {
-            $data['params'] = $this->params;
-        }
-        if ($this->result !== null) {
-            $data['result'] = $this->result;
-        }
-        if ($this->error !== null) {
-            $data['error'] = $this->error;
-        }
-
-        return $data;
+        // Merge any extra fields set directly on JsonRpcMessage (rare)
+        return array_merge((array)$data, $this->extraFields);
     }
+
+    /**
+     * Optional: A static factory method to detect which variant to construct
+     * from an associative array. Not strictly required by instructions, but
+     * helpful. We'll keep YAGNI in mind and not add it unless needed.
+     */
 }

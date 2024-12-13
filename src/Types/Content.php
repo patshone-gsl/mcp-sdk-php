@@ -30,17 +30,29 @@ namespace Mcp\Types;
 
 /**
  * Base class for content types
+ * content can have annotations?: object
  */
 abstract class Content implements McpModel {
     use ExtraFieldsTrait;
 
     public function __construct(
         public readonly string $type,
-        public ?array $annotations = null,
+        public ?Annotations $annotations = null,
     ) {}
 
+    public function validate(): void {
+        if ($this->annotations !== null) {
+            $this->annotations->validate();
+        }
+    }
+
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
+        $data = [
+            'type' => $this->type
+        ];
+        if ($this->annotations !== null) {
+            $data['annotations'] = $this->annotations;
+        }
         return array_merge($data, $this->extraFields);
     }
 }

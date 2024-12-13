@@ -38,10 +38,10 @@ class CreateMessageRequest extends Request {
     public function __construct(
         public readonly array $messages,
         public readonly int $maxTokens,
-        public ?array $stopSequences = null,
+        public ?array $stopSequences = null, // string[]
         public ?string $systemPrompt = null,
         public ?float $temperature = null,
-        public ?array $metadata = null,
+        public ?Meta $metadata = null,
         public ?ModelPreferences $modelPreferences = null,
         public ?string $includeContext = null,
     ) {
@@ -62,13 +62,15 @@ class CreateMessageRequest extends Request {
         if ($this->maxTokens <= 0) {
             throw new \InvalidArgumentException('Max tokens must be greater than 0');
         }
-        if ($this->includeContext !== null) {
-            if (!in_array($this->includeContext, ['allServers', 'none', 'thisServer'])) {
-                throw new \InvalidArgumentException('Invalid include context value');
-            }
+        if ($this->includeContext !== null && !in_array($this->includeContext, ['allServers', 'none', 'thisServer'])) {
+            throw new \InvalidArgumentException('Invalid includeContext value');
         }
         if ($this->modelPreferences !== null) {
             $this->modelPreferences->validate();
+        }
+        // metadata is a Meta object, it's allowed arbitrary fields
+        if ($this->metadata !== null) {
+            $this->metadata->validate();
         }
     }
 }

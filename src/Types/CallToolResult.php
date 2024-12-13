@@ -30,6 +30,8 @@ namespace Mcp\Types;
 
 /**
  * Result of a tool call
+ * content: (TextContent|ImageContent|EmbeddedResource)[]
+ * isError?: boolean
  */
 class CallToolResult extends Result {
     /**
@@ -38,16 +40,16 @@ class CallToolResult extends Result {
     public function __construct(
         public readonly array $content,
         public ?bool $isError = false,
-        ?array $meta = null,
+        ?Meta $_meta = null,
     ) {
-        parent::__construct($meta);
+        parent::__construct($_meta);
     }
 
     public function validate(): void {
         parent::validate();
         foreach ($this->content as $item) {
             if (!($item instanceof TextContent || $item instanceof ImageContent || $item instanceof EmbeddedResource)) {
-                throw new \InvalidArgumentException('Tool call content must be instances of TextContent, ImageContent, or EmbeddedResource');
+                throw new \InvalidArgumentException('Tool call content must be TextContent, ImageContent, or EmbeddedResource instances');
             }
             $item->validate();
         }

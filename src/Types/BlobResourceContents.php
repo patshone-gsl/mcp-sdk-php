@@ -41,9 +41,7 @@ class BlobResourceContents extends ResourceContents {
     }
 
     public function validate(): void {
-        if (empty($this->uri)) {
-            throw new \InvalidArgumentException('Resource URI cannot be empty');
-        }
+        parent::validate();
         if (empty($this->blob)) {
             throw new \InvalidArgumentException('Resource blob cannot be empty');
         }

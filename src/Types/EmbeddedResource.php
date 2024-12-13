@@ -37,7 +37,7 @@ class EmbeddedResource implements McpModel {
     public function __construct(
         public readonly ResourceContents $resource,
         public readonly string $type = 'resource',
-        public ?array $annotations = null,
+        public ?Annotations $annotations = null,
     ) {}
 
     public function validate(): void {
@@ -45,10 +45,19 @@ class EmbeddedResource implements McpModel {
         if ($this->type !== 'resource') {
             throw new \InvalidArgumentException('Embedded resource type must be "resource"');
         }
+        if ($this->annotations !== null) {
+            $this->annotations->validate();
+        }
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
+        $data = [
+            'type' => $this->type,
+            'resource' => $this->resource,
+        ];
+        if ($this->annotations !== null) {
+            $data['annotations'] = $this->annotations;
+        }
         return array_merge($data, $this->extraFields);
     }
 }

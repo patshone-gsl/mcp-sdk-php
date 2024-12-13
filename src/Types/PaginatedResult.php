@@ -28,14 +28,24 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Base class for all paginated results
- */
-abstract class PaginatedResult extends Result {
+class PaginatedResult extends Result {
     public function __construct(
         public ?string $nextCursor = null,
-        ?array $meta = null,
+        ?Meta $_meta = null,
     ) {
-        parent::__construct($meta);
+        parent::__construct($_meta);
+    }
+
+    public function validate(): void {
+        parent::validate();
+        // no extra validation needed for nextCursor
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = parent::jsonSerialize();
+        if ($this->nextCursor !== null) {
+            $data['nextCursor'] = $this->nextCursor;
+        }
+        return $data;
     }
 }

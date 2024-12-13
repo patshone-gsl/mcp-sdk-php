@@ -28,23 +28,17 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Notification for progress updates
- */
 class ProgressNotification extends Notification {
     public function __construct(
-        public readonly ProgressToken $progressToken,
-        public readonly float $progress,
-        public ?float $total = null,
+        ProgressNotificationParams $params
     ) {
-        parent::__construct('notifications/progress');
+        parent::__construct('notifications/progress', $params);
     }
 
     public function validate(): void {
         parent::validate();
-        $this->progressToken->validate();
-        if ($this->total !== null && $this->total < $this->progress) {
-            throw new \InvalidArgumentException('Total progress cannot be less than current progress');
+        if ($this->params !== null && $this->params instanceof ProgressNotificationParams) {
+            $this->params->validate();
         }
     }
 }

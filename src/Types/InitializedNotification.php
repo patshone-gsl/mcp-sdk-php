@@ -28,11 +28,13 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Notification for initialization completion
- */
 class InitializedNotification extends Notification {
     public function __construct() {
         parent::__construct('notifications/initialized');
+    }
+
+    public function validate(): void {
+        parent::validate();
+        // No additional fields, this notification has no params by default.
     }
 }

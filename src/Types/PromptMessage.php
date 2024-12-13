@@ -29,14 +29,18 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * Describes a message returned as part of a prompt
+ * PromptMessage
+ * {
+ *   role: Role;
+ *   content: TextContent | ImageContent | EmbeddedResource;
+ * }
  */
 class PromptMessage implements McpModel {
     use ExtraFieldsTrait;
 
     public function __construct(
-        public readonly Content|EmbeddedResource $content,
         public readonly Role $role,
+        public readonly TextContent|ImageContent|EmbeddedResource $content,
     ) {}
 
     public function validate(): void {
@@ -44,7 +48,9 @@ class PromptMessage implements McpModel {
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
-        return array_merge($data, $this->extraFields);
+        return array_merge([
+            'role' => $this->role->value,
+            'content' => $this->content,
+        ], $this->extraFields);
     }
 }

@@ -28,15 +28,12 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Definition for a tool the client can call
- */
 class Tool implements McpModel {
     use ExtraFieldsTrait;
 
     public function __construct(
         public readonly string $name,
-        public readonly array $inputSchema,
+        public readonly ToolInputSchema $inputSchema,
         public ?string $description = null,
     ) {}
 
@@ -44,13 +41,20 @@ class Tool implements McpModel {
         if (empty($this->name)) {
             throw new \InvalidArgumentException('Tool name cannot be empty');
         }
-        if (!isset($this->inputSchema['type']) || $this->inputSchema['type'] !== 'object') {
-            throw new \InvalidArgumentException('Tool input schema must be an object type');
-        }
+        // inputSchema must have type: "object"
+        // We're enforcing type: "object" in ToolInputSchema jsonSerialize().
+        // Just validate that inputSchema is valid and actually sets type object there.
+        $this->inputSchema->validate();
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
+        $data = [
+            'name' => $this->name,
+            'inputSchema' => $this->inputSchema,
+        ];
+        if ($this->description !== null) {
+            $data['description'] = $this->description;
+        }
         return array_merge($data, $this->extraFields);
     }
 }

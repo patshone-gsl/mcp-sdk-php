@@ -28,9 +28,6 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Represents a root directory or file that the server can operate on
- */
 class Root implements McpModel {
     use ExtraFieldsTrait;
 
@@ -49,7 +46,10 @@ class Root implements McpModel {
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
+        $data = ['uri' => $this->uri];
+        if ($this->name !== null) {
+            $data['name'] = $this->name;
+        }
         return array_merge($data, $this->extraFields);
     }
 }

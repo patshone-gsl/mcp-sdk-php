@@ -28,9 +28,6 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Hints to use for model selection
- */
 class ModelHint implements McpModel {
     use ExtraFieldsTrait;
 
@@ -39,11 +36,14 @@ class ModelHint implements McpModel {
     ) {}
 
     public function validate(): void {
-        // No validation needed as all fields are optional
+        // No required fields
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
+        $data = [];
+        if ($this->name !== null) {
+            $data['name'] = $this->name;
+        }
         return array_merge($data, $this->extraFields);
     }
 }

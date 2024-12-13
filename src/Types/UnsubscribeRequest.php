@@ -28,20 +28,17 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Request to unsubscribe from resource updates
- */
 class UnsubscribeRequest extends Request {
     public function __construct(
-        public readonly string $uri,
+        string $uri
     ) {
-        parent::__construct('resources/unsubscribe');
+        parent::__construct('resources/unsubscribe', new UnsubscribeRequestParams($uri));
     }
 
     public function validate(): void {
         parent::validate();
-        if (empty($this->uri)) {
-            throw new \InvalidArgumentException('Resource URI cannot be empty');
+        if ($this->params instanceof UnsubscribeRequestParams) {
+            $this->params->validate();
         }
     }
 }

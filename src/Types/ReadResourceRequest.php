@@ -33,15 +33,15 @@ namespace Mcp\Types;
  */
 class ReadResourceRequest extends Request {
     public function __construct(
-        public readonly string $uri,
+        string $uri,
     ) {
-        parent::__construct('resources/read');
+        parent::__construct('resources/read', new ReadResourceRequestParams($uri));
     }
 
     public function validate(): void {
         parent::validate();
-        if (empty($this->uri)) {
-            throw new \InvalidArgumentException('Resource URI cannot be empty');
+        if ($this->params instanceof ReadResourceRequestParams) {
+            $this->params->validate();
         }
     }
 }

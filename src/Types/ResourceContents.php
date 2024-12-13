@@ -39,6 +39,13 @@ abstract class ResourceContents implements McpModel {
         public ?string $mimeType = null,
     ) {}
 
+    public function validate(): void {
+        if (empty($this->uri)) {
+            throw new \InvalidArgumentException('ResourceContents uri cannot be empty');
+        }
+        // mimeType is optional
+    }
+
     public function jsonSerialize(): mixed {
         $data = get_object_vars($this);
         return array_merge($data, $this->extraFields);

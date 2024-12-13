@@ -28,9 +28,6 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Result of listing available resources
- */
 class ListResourcesResult extends PaginatedResult {
     /**
      * @param Resource[] $resources
@@ -38,9 +35,9 @@ class ListResourcesResult extends PaginatedResult {
     public function __construct(
         public readonly array $resources,
         ?string $nextCursor = null,
-        ?array $meta = null,
+        ?Meta $_meta = null,
     ) {
-        parent::__construct($nextCursor, $meta);
+        parent::__construct($nextCursor, $_meta);
     }
 
     public function validate(): void {
@@ -51,5 +48,11 @@ class ListResourcesResult extends PaginatedResult {
             }
             $resource->validate();
         }
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = parent::jsonSerialize();
+        $data['resources'] = $this->resources;
+        return $data;
     }
 }

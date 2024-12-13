@@ -29,21 +29,40 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * Union type for server requests
+ * Union type for server requests:
+ * type ServerRequest =
+ *   | PingRequest
+ *   | CreateMessageRequest
+ *   | ListRootsRequest
+ *
+ * Represented as a root model holding one valid Request variant.
  */
-class ServerRequest {
+class ServerRequest implements McpModel {
+    use ExtraFieldsTrait;
+
     private Request $request;
 
     public function __construct(Request $request) {
-        if (!($request instanceof PingRequest ||
+        if (!(
+            $request instanceof PingRequest ||
             $request instanceof CreateMessageRequest ||
-            $request instanceof ListRootsRequest)) {
+            $request instanceof ListRootsRequest
+        )) {
             throw new \InvalidArgumentException('Invalid server request type');
         }
         $this->request = $request;
     }
 
+    public function validate(): void {
+        $this->request->validate();
+    }
+
     public function getRequest(): Request {
         return $this->request;
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = $this->request->jsonSerialize();
+        return array_merge((array)$data, $this->extraFields);
     }
 }

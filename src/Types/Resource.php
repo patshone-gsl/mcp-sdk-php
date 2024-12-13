@@ -28,19 +28,19 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * A known resource that the server is capable of reading
- */
 class Resource implements McpModel {
     use ExtraFieldsTrait;
+    use AnnotatedTrait;
 
     public function __construct(
         public readonly string $name,
         public readonly string $uri,
         public ?string $description = null,
         public ?string $mimeType = null,
-        public ?array $annotations = null,
-    ) {}
+        ?Annotations $annotations = null
+    ) {
+        $this->annotations = $annotations;
+    }
 
     public function validate(): void {
         if (empty($this->name)) {
@@ -49,10 +49,20 @@ class Resource implements McpModel {
         if (empty($this->uri)) {
             throw new \InvalidArgumentException('Resource URI cannot be empty');
         }
+        $this->validateAnnotations();
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
-        return array_merge($data, $this->extraFields);
+        $data = [
+            'name' => $this->name,
+            'uri' => $this->uri,
+        ];
+        if ($this->description !== null) {
+            $data['description'] = $this->description;
+        }
+        if ($this->mimeType !== null) {
+            $data['mimeType'] = $this->mimeType;
+        }
+        return array_merge($data, $this->annotationsToJson(), $this->extraFields);
     }
 }

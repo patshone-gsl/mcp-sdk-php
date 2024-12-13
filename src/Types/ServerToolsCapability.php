@@ -29,18 +29,29 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * Structure for server tools capability
+ * Structure for server tools capability.
+ * According to the schema:
+ * tools?: {
+ *   listChanged?: boolean;
+ *   [key: string]: unknown;
+ * }
  */
 class ServerToolsCapability implements McpModel {
+    use ExtraFieldsTrait;
+
     public function __construct(
-        public readonly bool $listChanged,
+        public readonly ?bool $listChanged = null,
     ) {}
 
     public function validate(): void {
-        // No additional validation needed
+        // No required fields.
     }
 
     public function jsonSerialize(): mixed {
-        return ['listChanged' => $this->listChanged];
+        $data = [];
+        if ($this->listChanged !== null) {
+            $data['listChanged'] = $this->listChanged;
+        }
+        return array_merge($data, $this->extraFields);
     }
 }

@@ -28,9 +28,6 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Result of getting a prompt
- */
 class GetPromptResult extends Result {
     /**
      * @param PromptMessage[] $messages
@@ -38,9 +35,9 @@ class GetPromptResult extends Result {
     public function __construct(
         public readonly array $messages,
         public ?string $description = null,
-        ?array $meta = null,
+        ?Meta $_meta = null,
     ) {
-        parent::__construct($meta);
+        parent::__construct($_meta);
     }
 
     public function validate(): void {
@@ -51,5 +48,14 @@ class GetPromptResult extends Result {
             }
             $message->validate();
         }
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = parent::jsonSerialize();
+        $data['messages'] = $this->messages;
+        if ($this->description !== null) {
+            $data['description'] = $this->description;
+        }
+        return $data;
     }
 }

@@ -28,11 +28,13 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Notification for roots list changes
- */
 class RootsListChangedNotification extends Notification {
     public function __construct() {
         parent::__construct('notifications/roots/list_changed');
+    }
+
+    public function validate(): void {
+        parent::validate();
+        // No params
     }
 }

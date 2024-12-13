@@ -28,11 +28,14 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Notification for prompt list changes
- */
 class PromptListChangedNotification extends Notification {
     public function __construct() {
+        // This notification does not require params per the schema.
         parent::__construct('notifications/prompts/list_changed');
+    }
+
+    public function validate(): void {
+        parent::validate();
+        // No params expected, so nothing to validate here.
     }
 }

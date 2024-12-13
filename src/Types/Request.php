@@ -36,12 +36,15 @@ abstract class Request implements McpModel {
 
     public function __construct(
         public readonly string $method,
-        public ?array $params = null,
+        public ?RequestParams $params = null,
     ) {}
 
     public function validate(): void {
         if (empty($this->method)) {
             throw new \InvalidArgumentException('Request method cannot be empty');
+        }
+        if ($this->params !== null) {
+            $this->params->validate();
         }
     }
 

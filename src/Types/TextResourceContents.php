@@ -28,9 +28,6 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Text resource contents
- */
 class TextResourceContents extends ResourceContents {
     public function __construct(
         public readonly string $text,
@@ -41,11 +38,15 @@ class TextResourceContents extends ResourceContents {
     }
 
     public function validate(): void {
-        if (empty($this->uri)) {
-            throw new \InvalidArgumentException('Resource URI cannot be empty');
-        }
+        parent::validate();
         if (empty($this->text)) {
             throw new \InvalidArgumentException('Resource text cannot be empty');
         }
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = parent::jsonSerialize();
+        $data['text'] = $this->text;
+        return $data;
     }
 }

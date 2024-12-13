@@ -29,13 +29,13 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * Image content provided to or from an LLM
+ * Image content for messages
  */
 class ImageContent extends Content {
     public function __construct(
         public readonly string $data,
         public readonly string $mimeType,
-        ?array $annotations = null,
+        ?Annotations $annotations = null,
     ) {
         parent::__construct('image', $annotations);
     }
@@ -45,7 +45,17 @@ class ImageContent extends Content {
             throw new \InvalidArgumentException('Image data cannot be empty');
         }
         if (empty($this->mimeType)) {
-            throw new \InvalidArgumentException('MIME type cannot be empty');
+            throw new \InvalidArgumentException('Image mimeType cannot be empty');
         }
+        if ($this->annotations !== null) {
+            $this->annotations->validate();
+        }
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = parent::jsonSerialize();
+        $data['data'] = $this->data;
+        $data['mimeType'] = $this->mimeType;
+        return $data;
     }
 }

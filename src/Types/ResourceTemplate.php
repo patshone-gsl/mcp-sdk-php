@@ -28,19 +28,19 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * A template description for resources available on the server
- */
 class ResourceTemplate implements McpModel {
     use ExtraFieldsTrait;
+    use AnnotatedTrait;
 
     public function __construct(
         public readonly string $name,
         public readonly string $uriTemplate,
         public ?string $description = null,
         public ?string $mimeType = null,
-        public ?array $annotations = null,
-    ) {}
+        ?Annotations $annotations = null
+    ) {
+        $this->annotations = $annotations;
+    }
 
     public function validate(): void {
         if (empty($this->name)) {
@@ -49,10 +49,20 @@ class ResourceTemplate implements McpModel {
         if (empty($this->uriTemplate)) {
             throw new \InvalidArgumentException('Resource template URI template cannot be empty');
         }
+        $this->validateAnnotations();
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
-        return array_merge($data, $this->extraFields);
+        $data = [
+            'name' => $this->name,
+            'uriTemplate' => $this->uriTemplate,
+        ];
+        if ($this->description !== null) {
+            $data['description'] = $this->description;
+        }
+        if ($this->mimeType !== null) {
+            $data['mimeType'] = $this->mimeType;
+        }
+        return array_merge($data, $this->annotationsToJson(), $this->extraFields);
     }
 }

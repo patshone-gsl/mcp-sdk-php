@@ -28,24 +28,17 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Initialize request from client to server
- */
 class InitializeRequest extends Request {
     public function __construct(
-        public readonly ClientCapabilities $capabilities,
-        public readonly Implementation $clientInfo,
-        public readonly string $protocolVersion,
+        InitializeRequestParams $params
     ) {
-        parent::__construct('initialize');
+        parent::__construct('initialize', $params);
     }
 
     public function validate(): void {
         parent::validate();
-        $this->capabilities->validate();
-        $this->clientInfo->validate();
-        if (empty($this->protocolVersion)) {
-            throw new \InvalidArgumentException('Protocol version cannot be empty');
+        if ($this->params !== null) {
+            $this->params->validate();
         }
     }
 }

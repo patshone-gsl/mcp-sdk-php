@@ -29,27 +29,48 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * Union type for server notifications
+ * Union type for server notifications:
+ * type ServerNotification =
+ *   | CancelledNotification
+ *   | ProgressNotification
+ *   | ResourceListChangedNotification
+ *   | ResourceUpdatedNotification
+ *   | PromptListChangedNotification
+ *   | ToolListChangedNotification
+ *   | LoggingMessageNotification
+ *
+ * Represented as a root model holding one valid Notification variant.
  */
-class ServerNotification {
+class ServerNotification implements McpModel {
+    use ExtraFieldsTrait;
+
     private Notification $notification;
 
-    public function __construct(
-        Notification $notification
-    ) {
-        if (!($notification instanceof CancelledNotification ||
+    public function __construct(Notification $notification) {
+        if (!(
+            $notification instanceof CancelledNotification ||
             $notification instanceof ProgressNotification ||
             $notification instanceof ResourceListChangedNotification ||
             $notification instanceof ResourceUpdatedNotification ||
             $notification instanceof PromptListChangedNotification ||
             $notification instanceof ToolListChangedNotification ||
-            $notification instanceof LoggingMessageNotification)) {
+            $notification instanceof LoggingMessageNotification
+        )) {
             throw new \InvalidArgumentException('Invalid server notification type');
         }
         $this->notification = $notification;
     }
 
+    public function validate(): void {
+        $this->notification->validate();
+    }
+
     public function getNotification(): Notification {
         return $this->notification;
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = $this->notification->jsonSerialize();
+        return array_merge((array)$data, $this->extraFields);
     }
 }
