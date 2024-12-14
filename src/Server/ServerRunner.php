@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -28,17 +29,20 @@ declare(strict_types=1);
 
 namespace Mcp\Server;
 
-use Mcp\Server\Transport\StdioServerTransport;  // Updated to use class instead of function
-use Mcp\Server\ServerSession;             // Fixed namespace
-use Mcp\Server\Server;                    // Added for server creation
-use Mcp\Server\InitializationOptions;     // Added for initialization
+use Mcp\Server\Transport\StdioServerTransport;
+use Mcp\Server\ServerSession;
+use Mcp\Server\Server;
+use Mcp\Server\InitializationOptions;
 use Mcp\Types\ServerCapabilities;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
-use RuntimeException;                     // Added for error handling
+use RuntimeException;
 
 /**
- * Main entry point for running an MCP server
+ * Main entry point for running an MCP server synchronously using STDIO transport.
+ *
+ * This class emulates the behavior seen in the Python code, which uses async streams.
+ * Here, we run a loop reading messages from STDIO, passing them to the Server for handling.
  */
 class ServerRunner {
     private LoggerInterface $logger;
@@ -52,10 +56,12 @@ class ServerRunner {
     }
 
     /**
-     * Run the server using STDIO transport
+     * Run the server using STDIO transport.
+     *
+     * This sets up a ServerSession with a StdioServerTransport and enters a loop to read messages.
      */
     public function run(): void {
-        // Suppress warnings unless explicitly enabled
+        // Suppress warnings unless explicitly enabled (similar to Python code ignoring warnings)
         if (!getenv('MCP_ENABLE_WARNINGS')) {
             error_reporting(E_ERROR | E_PARSE);
         }
@@ -69,17 +75,18 @@ class ServerRunner {
                 $this->logger
             );
 
+            // Connect the server with the session
             $this->server->setSession($session);
             $session->start();
 
             $this->logger->info('Server started');
 
-            // Main message loop
+            // Main message loop - continuously read messages and pass to server
             while (true) {
                 try {
                     $message = $transport->readMessage();
                     if ($message === null) {
-                        // No message available, brief sleep to prevent CPU spinning
+                        // No message available; sleep briefly to avoid busy-waiting
                         usleep(10000); // 10ms
                         continue;
                     }
@@ -89,6 +96,7 @@ class ServerRunner {
 
                 } catch (\Exception $e) {
                     $this->logger->error('Error processing message: ' . $e->getMessage());
+                    // Continue reading next messages
                 }
             }
         } catch (\Exception $e) {

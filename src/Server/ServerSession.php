@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -35,15 +36,16 @@ use Mcp\Types\LoggingLevel;
 use Mcp\Types\Implementation;
 use Mcp\Types\ClientRequest;
 use Mcp\Types\ClientNotification;
+use Mcp\Types\ClientCapabilities;
+use Mcp\Types\InitializeResult;
+use Mcp\Types\InitializeRequestParams;
+use Mcp\Types\Result;
 use Mcp\Server\InitializationOptions;
 use Mcp\Server\Transport\Transport;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
 
-/**
- * Server initialization states
- */
 enum InitializationState: int {
     case NotInitialized = 1;
     case Initializing = 2;
@@ -51,11 +53,15 @@ enum InitializationState: int {
 }
 
 /**
- * Server-side session implementation for MCP
+ * ServerSession manages the MCP server-side session.
+ * It sets up initialization and ensures that requests and notifications are
+ * handled only after the client has initialized.
+ *
+ * Similar to Python's ServerSession, but synchronous and integrated with our PHP classes.
  */
 class ServerSession extends BaseSession {
     private InitializationState $initializationState = InitializationState::NotInitialized;
-    private ?object $clientParams = null;
+    private ?InitializeRequestParams $clientParams = null;
     private LoggerInterface $logger;
 
     public function __construct(
@@ -64,7 +70,7 @@ class ServerSession extends BaseSession {
         ?LoggerInterface $logger = null
     ) {
         $this->logger = $logger ?? new NullLogger();
-        // Server receives ClientRequest and ClientNotification from the client
+        // The server receives ClientRequest and ClientNotification from the client
         parent::__construct(
             receiveRequestType: ClientRequest::class,
             receiveNotificationType: ClientNotification::class
@@ -90,9 +96,9 @@ class ServerSession extends BaseSession {
     }
 
     /**
-     * Check if client supports a specific capability
+     * Check if the client supports a specific capability.
      */
-    public function checkClientCapability(\Mcp\Types\ClientCapabilities $capability): bool {
+    public function checkClientCapability(ClientCapabilities $capability): bool {
         if ($this->clientParams === null) {
             return false;
         }
@@ -129,6 +135,10 @@ class ServerSession extends BaseSession {
         return true;
     }
 
+    /**
+     * Handle incoming requests. If it's the initialize request, handle it specially.
+     * Otherwise, ensure initialization is complete before handling other requests.
+     */
     protected function handleRequest(JsonRpcMessage $message): void {
         if ($message->method === 'initialize') {
             $this->handleInitialize($message);
@@ -139,9 +149,13 @@ class ServerSession extends BaseSession {
             throw new RuntimeException('Received request before initialization was complete');
         }
 
+        // Delegate to parent to handle other requests if needed
         parent::handleRequest($message);
     }
 
+    /**
+     * Handle incoming notifications. If it's the "initialized" notification, mark state as Initialized.
+     */
     protected function handleNotification(JsonRpcMessage $message): void {
         if ($message->method === 'notifications/initialized') {
             $this->initializationState = InitializationState::Initialized;
@@ -152,24 +166,30 @@ class ServerSession extends BaseSession {
             throw new RuntimeException('Received notification before initialization was complete');
         }
 
+        // Delegate to parent to handle other notifications
         parent::handleNotification($message);
     }
 
     private function handleInitialize(JsonRpcMessage $message): void {
         $this->initializationState = InitializationState::Initializing;
-        $this->clientParams = $message->params;
+        // Assume $message->params is typed InitializeRequestParams.
+        /** @var InitializeRequestParams $params */
+        $params = $message->params;
+        $this->clientParams = $params;
+
+        $result = new InitializeResult(
+            protocolVersion: Version::LATEST_PROTOCOL_VERSION,
+            capabilities: $this->initOptions->capabilities,
+            serverInfo: new Implementation(
+                name: $this->initOptions->serverName,
+                version: $this->initOptions->serverVersion
+            )
+        );
 
         $response = new JsonRpcMessage(
             jsonrpc: '2.0',
             id: $message->id,
-            result: [
-                'protocolVersion' => Version::LATEST_PROTOCOL_VERSION,
-                'capabilities' => $this->initOptions->capabilities,
-                'serverInfo' => new Implementation(
-                    name: $this->initOptions->serverName,
-                    version: $this->initOptions->serverVersion
-                )
-            ]
+            result: $result
         );
 
         $this->transport->writeMessage($response);
@@ -244,27 +264,24 @@ class ServerSession extends BaseSession {
     }
 
     /**
-     * Implementing BaseSession abstract methods
+     * Implementing abstract methods from BaseSession
      */
 
     protected function startMessageProcessing(): void {
-        // The ServerSession uses start() to begin transport processing, so just call it here
+        // ServerSession uses start() to begin transport processing, just call it here
         $this->start();
     }
 
     protected function stopMessageProcessing(): void {
-        // Similarly, stop the transport when message processing stops
         $this->stop();
     }
 
     protected function writeMessage(JsonRpcMessage $message): void {
-        // Delegate to the transport
         $this->transport->writeMessage($message);
     }
 
     protected function waitForResponse(int $requestId, string $resultType): mixed {
-        // Typically, the server does not send requests that require waiting for responses.
-        // If this ever happens, you can implement logic similar to ClientSession or simply:
+        // The server typically does not wait for responses from the client.
         throw new RuntimeException('Server does not support waiting for responses from the client.');
     }
 }

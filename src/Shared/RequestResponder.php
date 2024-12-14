@@ -30,7 +30,7 @@ declare(strict_types=1);
 namespace Mcp\Shared;
 
 use Mcp\Types\RequestId;
-use Mcp\Types\ErrorData;
+use Mcp\Shared\ErrorData;
 use Mcp\Types\McpModel;
 use Mcp\Types\Meta;
 use RuntimeException;

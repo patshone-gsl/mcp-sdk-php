@@ -32,7 +32,7 @@ namespace Mcp\Types;
  * Base class for all responses (Result)
  * Schema: result objects can have `_meta?: object` and arbitrary fields
  */
-abstract class Result implements McpModel {
+class Result implements McpModel {
     use ExtraFieldsTrait;
 
     public function __construct(
@@ -43,7 +43,7 @@ abstract class Result implements McpModel {
         if ($this->_meta !== null) {
             $this->_meta->validate();
         }
-        // Additional validation can be done in subclasses
+        // Additional validation can be done in subclasses or specialized results
     }
 
     public function jsonSerialize(): mixed {

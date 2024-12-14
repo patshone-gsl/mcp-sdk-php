@@ -31,7 +31,7 @@ namespace Mcp\Shared;
 
 use Mcp\Types\JsonRpcMessage;
 use Mcp\Types\RequestId;
-use Mcp\Types\ErrorData;
+use Mcp\Shared\ErrorData;
 use Mcp\Types\ProgressToken;
 use Mcp\Types\ProgressNotification;
 use Mcp\Types\JSONRPCRequest;
@@ -39,7 +39,7 @@ use Mcp\Types\JSONRPCNotification;
 use Mcp\Types\JSONRPCResponse;
 use Mcp\Types\JSONRPCError;
 use Mcp\Types\McpModel;
-use Mcp\Types\McpError;
+use Mcp\Shared\McpError;
 use InvalidArgumentException;
 use RuntimeException;
 

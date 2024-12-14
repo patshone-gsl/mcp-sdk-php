@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -30,22 +31,24 @@ namespace Mcp\Server;
 
 use Mcp\Types\JsonRpcMessage;
 use Mcp\Types\ServerCapabilities;
-use Mcp\Types\ServerPromptsCapability;
-use Mcp\Types\ServerResourcesCapability;
-use Mcp\Types\ServerToolsCapability;
 use Mcp\Types\LoggingLevel;
 use Mcp\Types\RequestId;
 use Mcp\Shared\McpError;
+use Mcp\Shared\ErrorData as TypesErrorData;
+use Mcp\Types\JSONRPCResponse;
+use Mcp\Types\JSONRPCError;
+use Mcp\Types\JsonRpcErrorObject;
+use Mcp\Types\Result;
 use Mcp\Shared\ErrorData;
-use Mcp\Server\ServerSession;
-use Mcp\Server\InitializationOptions;
-use Mcp\Server\NotificationOptions;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
 
 /**
  * MCP Server implementation
+ *
+ * This class manages request and notification handlers, integrates with ServerSession,
+ * and handles incoming messages by dispatching them to the appropriate handlers.
  */
 class Server {
     private array $requestHandlers = [];
@@ -60,12 +63,15 @@ class Server {
         $this->logger = $logger ?? new NullLogger();
         $this->logger->debug("Initializing server '$name'");
 
-        // Register built-in ping handler
-        $this->requestHandlers['ping'] = [$this, 'handlePing'];
+        // Register built-in ping handler: returns an EmptyResult as per schema
+        $this->requestHandlers['ping'] = function (?array $params): Result {
+            // Ping returns an EmptyResult according to the schema
+            return new Result();
+        };
     }
 
     /**
-     * Creates initialization options for the server
+     * Creates initialization options for the server.
      */
     public function createInitializationOptions(
         ?NotificationOptions $notificationOptions = null,
@@ -82,38 +88,40 @@ class Server {
     }
 
     /**
-     * Gets server capabilities based on registered handlers
+     * Gets server capabilities based on registered handlers.
      */
     public function getCapabilities(
         NotificationOptions $notificationOptions,
         array $experimentalCapabilities
     ): ServerCapabilities {
+        // Check which handlers are registered to determine capabilities
         $promptsCapability = null;
         $resourcesCapability = null;
         $toolsCapability = null;
         $loggingCapability = null;
 
         if (isset($this->requestHandlers['prompts/list'])) {
-            $promptsCapability = new ServerPromptsCapability(
-                listChanged: $notificationOptions->promptsChanged
-            );
+            // This implies we can list prompts and maybe handle prompt changes
+            $promptsCapability = [
+                'listChanged' => $notificationOptions->promptsChanged
+            ];
         }
 
         if (isset($this->requestHandlers['resources/list'])) {
-            $resourcesCapability = new ServerResourcesCapability(
-                listChanged: $notificationOptions->resourcesChanged,
-                subscribe: false
-            );
+            $resourcesCapability = [
+                'subscribe' => false,
+                'listChanged' => $notificationOptions->resourcesChanged
+            ];
         }
 
         if (isset($this->requestHandlers['tools/list'])) {
-            $toolsCapability = new ServerToolsCapability(
-                listChanged: $notificationOptions->toolsChanged
-            );
+            $toolsCapability = [
+                'listChanged' => $notificationOptions->toolsChanged
+            ];
         }
 
         if (isset($this->requestHandlers['logging/setLevel'])) {
-            $loggingCapability = [];
+            $loggingCapability = []; // some logging capabilities defined
         }
 
         return new ServerCapabilities(
@@ -126,50 +134,67 @@ class Server {
     }
 
     /**
-     * Registers request handlers using method registration
+     * Registers a request handler for a given method.
+     *
+     * The handler should return a `Result` object or throw `McpError`.
      */
     public function registerHandler(string $method, callable $handler): void {
         $this->requestHandlers[$method] = $handler;
-        $this->logger->debug("Registered handler for $method");
+        $this->logger->debug("Registered handler for request method: $method");
     }
 
     /**
-     * Registers notification handlers
+     * Registers a notification handler for a given method.
+     *
+     * The handler does not return a result, just processes the notification.
      */
     public function registerNotificationHandler(string $method, callable $handler): void {
         $this->notificationHandlers[$method] = $handler;
-        $this->logger->debug("Registered notification handler for $method");
+        $this->logger->debug("Registered notification handler for method: $method");
     }
 
     /**
-     * Processes an incoming message
+     * Processes an incoming message from the client.
      */
     public function handleMessage(JsonRpcMessage $message): void {
         $this->logger->debug("Received message: " . json_encode($message));
 
+        // Determine if request or notification by checking if $message->id is set
         if ($message->method === null) {
-            return; // Response message, ignore
+            // This is a response message from client, server typically doesn't wait on client responses
+            return;
         }
 
         try {
             if ($message->id !== null) {
-                // Request
+                // It's a request
                 $handler = $this->requestHandlers[$message->method] ?? null;
                 if ($handler === null) {
-                    throw new McpError(new ErrorData(
+                    throw new McpError(new TypesErrorData(
                         -32601,
                         "Method not found: {$message->method}"
                     ));
                 }
 
-                $result = $handler($message->params ?? null);
-                $this->sendResponse($message->id, $result);
+                // Handlers take params and return a Result object or throw McpError
+                $params = $message->params ?? null;
+                $result = $handler($params);
+                if (!$result instanceof Result) {
+                    // If the handler doesn't return a Result, wrap it in a Result or throw error
+                    // According to schema, result must be a Result object.
+                    $resultObj = new Result();
+                    // Populate $resultObj if $result is something else
+                    // For simplicity, if handler returned array or null, just do nothing special
+                    $result = $resultObj;
+                }
 
+                $this->sendResponse($message->id, $result);
             } else {
-                // Notification
+                // It's a notification
                 $handler = $this->notificationHandlers[$message->method] ?? null;
                 if ($handler !== null) {
-                    $handler($message->params ?? null);
+                    $params = $message->params ?? null;
+                    $handler($params);
                 }
             }
         } catch (McpError $e) {
@@ -177,57 +202,75 @@ class Server {
                 $this->sendError($message->id, $e->error);
             }
         } catch (\Exception $e) {
+            $this->logger->error("Error handling message: " . $e->getMessage());
             if ($message->id !== null) {
+                // Code 0 is a generic error code, or we could choose another code per the schema
                 $this->sendError($message->id, new ErrorData(
-                    0,
-                    $e->getMessage()
+                    code: 0,
+                    message: $e->getMessage()
                 ));
             }
-            $this->logger->error("Error handling message: " . $e->getMessage());
         }
     }
 
     /**
-     * Built-in ping handler
+     * Built-in ping handler (already set in the constructor)
+     * Just returns an empty result (which we already do in constructor)
      */
-    private function handlePing(?array $params): array {
-        return [];
-    }
 
-    private function sendResponse($id, $result): void {
+    private function sendResponse(RequestId $id, Result $result): void {
         if (!$this->session) {
-            throw new \RuntimeException('No active session');
+            throw new RuntimeException('No active session');
         }
 
-        $response = new JsonRpcMessage(
+        // Create a JSONRPCResponse object and wrap in JsonRpcMessage
+        $resp = new JSONRPCResponse(
             jsonrpc: '2.0',
             id: $id,
             result: $result
         );
+        $resp->validate();
 
-        $this->session->sendMessage($response);
+        $msg = new JsonRpcMessage($resp);
+        $this->session->writeMessage($msg);
     }
 
-    private function sendError($id, ErrorData $error): void {
+    private function sendError(RequestId $id, ErrorData $error): void {
         if (!$this->session) {
-            throw new \RuntimeException('No active session');
+            throw new RuntimeException('No active session');
         }
 
-        $response = new JsonRpcMessage(
-            jsonrpc: '2.0',
-            id: $id,
-            error: $error
+        $errorObj = new JsonRpcErrorObject(
+            code: $error->code,
+            message: $error->message,
+            data: $error->data ?? null
         );
 
-        $this->session->sendMessage($response);
+        $errResp = new JSONRPCError(
+            jsonrpc: '2.0',
+            id: $id,
+            error: $errorObj
+        );
+        $errResp->validate();
+
+        $msg = new JsonRpcMessage($errResp);
+        $this->session->writeMessage($msg);
     }
 
     private function getPackageVersion(string $package): string {
-        // Implementation would depend on how you want to handle versioning
-        return '1.0.0'; // Example version
+        // Return a static version. Actual implementation can read from composer.json or elsewhere.
+        return '1.0.0';
     }
 
     public function setSession(ServerSession $session): void {
         $this->session = $session;
     }
+}
+
+class NotificationOptions {
+    public function __construct(
+        public bool $promptsChanged = false,
+        public bool $resourcesChanged = false,
+        public bool $toolsChanged = false,
+    ) {}
 }
