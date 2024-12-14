@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -36,6 +37,7 @@ use Mcp\Types\ClientNotification;
 use Mcp\Types\ServerRequest;
 use Mcp\Types\ServerNotification;
 use Mcp\Types\InitializeRequest;
+use Mcp\Types\InitializeRequestParams;
 use Mcp\Types\InitializeResult;
 use Mcp\Types\EmptyResult;
 use Mcp\Types\Implementation;
@@ -56,17 +58,24 @@ use Mcp\Types\InitializedNotification;
 use Mcp\Types\ProgressNotification;
 use Mcp\Types\PingRequest;
 use Mcp\Types\RootsListChangedNotification;
+use Mcp\Types\JsonRpcMessage;
 use RuntimeException;
 
 /**
  * Client session for MCP communication
+ *
+ * The client interacts with a server by sending requests and notifications, and receiving responses.
  */
 class ClientSession extends BaseSession {
+    private ?InitializeResult $initResult = null;
+    private bool $initialized = false;
+
     public function __construct(
         private MemoryStream $readStream,
         private MemoryStream $writeStream,
         private ?float $readTimeout = null,
     ) {
+        // Client receives ServerRequest and ServerNotification from the server
         parent::__construct(
             receiveRequestType: ServerRequest::class,
             receiveNotificationType: ServerNotification::class
@@ -74,43 +83,43 @@ class ClientSession extends BaseSession {
     }
 
     /**
-     * Initialize the client session
+     * Initialize the client session by sending an InitializeRequest and then an InitializedNotification.
      */
-    private ?InitializeResult $initResult = null;
-    
     public function initialize(): void {
         $request = new InitializeRequest(
-            capabilities: new ClientCapabilities(
-                roots: new ClientRootsCapability(listChanged: true),
-                sampling: null,
-                experimental: null
-            ),
-            clientInfo: new Implementation(
-                name: 'mcp',
-                version: '0.1.0'
-            ),
-            protocolVersion: Version::LATEST_PROTOCOL_VERSION
+            method: "initialize",
+            params: new InitializeRequestParams(
+                protocolVersion: Version::LATEST_PROTOCOL_VERSION,
+                capabilities: new ClientCapabilities(
+                    roots: new ClientRootsCapability(listChanged: true)
+                ),
+                clientInfo: new Implementation(
+                    name: 'mcp',
+                    version: '0.1.0'
+                )
+            )
         );
-    
+
+        /** @var InitializeResult $result */
         $result = $this->sendRequest($request, InitializeResult::class);
-    
+
         if (!in_array($result->protocolVersion, Version::SUPPORTED_PROTOCOL_VERSIONS)) {
             throw new RuntimeException(
                 "Unsupported protocol version from the server: {$result->protocolVersion}"
             );
         }
-    
-        $notification = new InitializedNotification();
+
+        // Send InitializedNotification
+        $notification = new InitializedNotification(
+            method: "notifications/initialized"
+        );
         $this->sendNotification($notification);
-    
-        // Store the result internally, don't return it.
+
         $this->initResult = $result;
-    
-        // Call the parent initialize, which sets isInitialized and starts message processing.
-        parent::initialize();
+        $this->initialized = true;
+        $this->startMessageProcessing();
     }
-    
-    // Provide a getter if you need access to the InitializeResult later
+
     public function getInitializeResult(): InitializeResult {
         if ($this->initResult === null) {
             throw new RuntimeException('Session not yet initialized');
@@ -118,216 +127,196 @@ class ClientSession extends BaseSession {
         return $this->initResult;
     }
 
-    /**
-     * Send a ping request
-     */
     public function sendPing(): EmptyResult {
-        $request = new PingRequest();
+        $request = new PingRequest(method: "ping");
         return $this->sendRequest($request, EmptyResult::class);
     }
 
-    /**
-     * Send a progress notification
-     */
     public function sendProgressNotification(
         ProgressToken $progressToken,
         float $progress,
         ?float $total = null
     ): void {
         $notification = new ProgressNotification(
-            progressToken: $progressToken,
-            progress: $progress,
-            total: $total
+            method: "notifications/progress",
+            params: [
+                'progressToken' => $progressToken,
+                'progress' => $progress,
+                'total' => $total
+            ]
         );
         $this->sendNotification($notification);
     }
 
-    /**
-     * Set the logging level
-     */
     public function setLoggingLevel(LoggingLevel $level): EmptyResult {
-        $request = new \Mcp\Types\SetLevelRequest($level);
+        $request = new \Mcp\Types\SetLevelRequest(
+            method: "logging/setLevel",
+            params: ['level' => $level]
+        );
         return $this->sendRequest($request, EmptyResult::class);
     }
 
-    /**
-     * List available resources
-     */
     public function listResources(): ListResourcesResult {
-        $request = new \Mcp\Types\ListResourcesRequest();
+        $request = new \Mcp\Types\ListResourcesRequest(method: "resources/list");
         return $this->sendRequest($request, ListResourcesResult::class);
     }
 
-    /**
-     * Read a specific resource
-     */
     public function readResource(string $uri): ReadResourceResult {
-        $request = new \Mcp\Types\ReadResourceRequest($uri);
+        $request = new \Mcp\Types\ReadResourceRequest(
+            method: "resources/read",
+            params: ['uri' => $uri]
+        );
         return $this->sendRequest($request, ReadResourceResult::class);
     }
 
-    /**
-     * Subscribe to resource updates
-     */
     public function subscribeResource(string $uri): EmptyResult {
-        $request = new \Mcp\Types\SubscribeRequest($uri);
+        $request = new \Mcp\Types\SubscribeRequest(
+            method: "resources/subscribe",
+            params: ['uri' => $uri]
+        );
         return $this->sendRequest($request, EmptyResult::class);
     }
 
-    /**
-     * Unsubscribe from resource updates
-     */
     public function unsubscribeResource(string $uri): EmptyResult {
-        $request = new \Mcp\Types\UnsubscribeRequest($uri);
+        $request = new \Mcp\Types\UnsubscribeRequest(
+            method: "resources/unsubscribe",
+            params: ['uri' => $uri]
+        );
         return $this->sendRequest($request, EmptyResult::class);
     }
 
-    /**
-     * Call a tool
-     */
     public function callTool(string $name, ?array $arguments = null): CallToolResult {
-        $request = new \Mcp\Types\CallToolRequest($name, $arguments);
+        $request = new \Mcp\Types\CallToolRequest(
+            method: "tools/call",
+            params: [
+                'name' => $name,
+                'arguments' => $arguments
+            ]
+        );
         return $this->sendRequest($request, CallToolResult::class);
     }
 
-    /**
-     * List available prompts
-     */
     public function listPrompts(): ListPromptsResult {
-        $request = new \Mcp\Types\ListPromptsRequest();
+        $request = new \Mcp\Types\ListPromptsRequest(method: "prompts/list");
         return $this->sendRequest($request, ListPromptsResult::class);
     }
 
-    /**
-     * Get a specific prompt
-     */
     public function getPrompt(string $name, ?array $arguments = null): GetPromptResult {
-        $request = new \Mcp\Types\GetPromptRequest($name, $arguments);
+        $request = new \Mcp\Types\GetPromptRequest(
+            method: "prompts/get",
+            params: [
+                'name' => $name,
+                'arguments' => $arguments
+            ]
+        );
         return $this->sendRequest($request, GetPromptResult::class);
     }
 
-    /**
-     * Get completion suggestions
-     */
     public function complete(
         ResourceReference|PromptReference $ref,
         array $argument
     ): CompleteResult {
-        $request = new \Mcp\Types\CompleteRequest($argument, $ref);
+        $request = new \Mcp\Types\CompleteRequest(
+            method: "completion/complete",
+            params: [
+                'ref' => $ref,
+                'argument' => $argument
+            ]
+        );
         return $this->sendRequest($request, CompleteResult::class);
     }
 
-    /**
-     * List available tools
-     */
     public function listTools(): ListToolsResult {
-        $request = new \Mcp\Types\ListToolsRequest();
+        $request = new \Mcp\Types\ListToolsRequest(method: "tools/list");
         return $this->sendRequest($request, ListToolsResult::class);
     }
 
-    /**
-     * Send a notification that the roots list has changed
-     */
     public function sendRootsListChanged(): void {
-        $notification = new RootsListChangedNotification();
+        $notification = new RootsListChangedNotification(
+            method: "notifications/roots/list_changed"
+        );
         $this->sendNotification($notification);
+    }
+
+    public function receiveMessage(): JsonRpcMessage|\Exception|null {
+        $msg = $this->readStream->receive();
+        return $msg; // The transport already returns JsonRpcMessage or Exception or null
     }
 
     protected function getReadTimeout(): ?float {
         return $this->readTimeout;
     }
-    
+
     protected function startMessageProcessing(): void {
-        // No background processing needed for now.
-        // If you later implement async message loops, start them here.
+        // If you want to start a background thread or event loop for incoming messages, do it here.
+        // Currently, we read messages in waitForResponse().
     }
-    
+
     protected function stopMessageProcessing(): void {
-        // Stop any ongoing background processing if you add it in the future.
+        // Stop any ongoing background processing if implemented in the future.
     }
-    
+
     protected function writeMessage(\Mcp\Types\JsonRpcMessage $message): void {
-        $json = json_encode($message, JSON_UNESCAPED_SLASHES);
-        if ($json === false) {
-            throw new \RuntimeException('Failed to encode JSON message: ' . json_last_error_msg());
-        }
-        $this->writeStream->send($json . "\n");
+        // Directly send the JsonRpcMessage to the writeStream.
+        $this->writeStream->send($message);
     }
-    
+
     protected function waitForResponse(int $requestId, string $resultType): mixed {
         $timeout = $this->getReadTimeout();
         $startTime = microtime(true);
-    
+
         while (true) {
             if ($timeout !== null && (microtime(true) - $startTime) >= $timeout) {
-                throw new \RuntimeException("Timed out waiting for response to request $requestId");
+                throw new RuntimeException("Timed out waiting for response to request $requestId");
             }
-    
+
             $message = $this->readStream->receive();
-    
             if ($message === null) {
-                // No message yet, sleep briefly to prevent busy-waiting
-                usleep(10000); 
+                usleep(10000);
                 continue;
             }
-    
+
             if ($message instanceof \Exception) {
-                // The stream returned an exception as a message
+                // If the readStream returned an exception, rethrow it
                 throw $message;
             }
-    
-            // Expecting $message to be a JSON string representing a JSON-RPC message
-            $data = json_decode($message, true);
-            if ($data === null) {
-                throw new \RuntimeException("Invalid JSON message received: $message");
+
+            // $message should be a JsonRpcMessage
+            if (!$message instanceof JsonRpcMessage) {
+                throw new RuntimeException("Invalid message type received from readStream");
             }
-    
-            // Construct a JsonRpcMessage object
-            $jsonRpcMessage = new \Mcp\Types\JsonRpcMessage(
-                jsonrpc: $data['jsonrpc'] ?? '2.0',
-                id: isset($data['id']) ? new \Mcp\Types\RequestId($data['id']) : null,
-                method: $data['method'] ?? null,
-                params: $data['params'] ?? null,
-                result: $data['result'] ?? null,
-                error: $data['error'] ?? null
-            );
-    
-            // Process this message through the base session handler.
-            // If it's a response, handleIncomingMessage() will invoke the response handler.
-            $this->handleIncomingMessage($jsonRpcMessage);
-    
-            // Check if this message is a response to our request.
-            if ($jsonRpcMessage->id !== null && $jsonRpcMessage->id->getValue() === $requestId) {
-                // If there's an error, throw an exception.
-                if ($jsonRpcMessage->error !== null) {
-                    $code = $jsonRpcMessage->error['code'] ?? 0;
-                    $msg = $jsonRpcMessage->error['message'] ?? 'Unknown error';
-                    throw new \RuntimeException("Server returned an error: [{$code}] {$msg}");
+
+            // If this message has an id and matches our requestId, it might be the response.
+            if ($message->id !== null && $message->id->getValue() === $requestId) {
+                // Check if it's an error response
+                if ($message->error !== null) {
+                    $code = $message->error['code'] ?? 0;
+                    $msg = $message->error['message'] ?? 'Unknown error';
+                    throw new RuntimeException("Server returned an error: [{$code}] {$msg}");
                 }
-    
-                // If there’s a result, construct the result object.
-                // Many of your result classes (like InitializeResult, etc.) appear to accept arrays
-                // in their constructors. Adjust as needed if the actual constructor signatures differ.
-                if ($jsonRpcMessage->result === null) {
-                    // Possibly an EmptyResult or no data needed.
+
+                // If it's a success response, construct the result object
+                if ($message->result === null) {
+                    // Possibly EmptyResult or no data
                     if ($resultType === \Mcp\Types\EmptyResult::class) {
                         return new \Mcp\Types\EmptyResult();
                     }
                     return null;
                 }
-    
-                // Construct the result type using the data in $jsonRpcMessage->result.
-                // Assuming the result array keys match the constructor parameters of $resultType.
-                // If the constructors differ, you'll need to manually map fields.
-                if (is_array($jsonRpcMessage->result)) {
-                    return new $resultType(...$jsonRpcMessage->result);
+
+                // Construct the $resultType object from $message->result
+                // If $message->result is an array, use argument unpacking
+                if (is_array($message->result)) {
+                    return new $resultType(...$message->result);
                 } else {
-                    // If result is not an array, you may need to handle it differently.
-                    // This is a fallback scenario.
-                    return new $resultType($jsonRpcMessage->result);
+                    // If result is not an array, just pass it directly if constructor allows it
+                    return new $resultType($message->result);
                 }
             }
+
+            // If not our response, we can call handleIncomingMessage() to process server requests/notifications
+            $this->handleIncomingMessage($message);
+            // Then loop again until we find our response.
         }
     }
-    
 }
