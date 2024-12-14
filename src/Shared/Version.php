@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -28,6 +29,13 @@ declare(strict_types=1);
 
 namespace Mcp\Shared;
 
+/**
+ * Provides version constants for the MCP protocol.
+ *
+ * Aligns with the Python constants:
+ * LATEST_PROTOCOL_VERSION = "2024-11-05"
+ * SUPPORTED_PROTOCOL_VERSIONS = [1, LATEST_PROTOCOL_VERSION]
+ */
 class Version {
     public const LATEST_PROTOCOL_VERSION = '2024-11-05';
     public const SUPPORTED_PROTOCOL_VERSIONS = ['1', self::LATEST_PROTOCOL_VERSION];

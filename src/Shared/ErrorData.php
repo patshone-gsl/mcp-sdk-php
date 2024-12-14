@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -28,13 +29,21 @@ declare(strict_types=1);
 
 namespace Mcp\Shared;
 
-use JsonSerializable;
 use Mcp\Types\McpModel;
 use Mcp\Types\ExtraFieldsTrait;
 use InvalidArgumentException;
 
 /**
  * Data structure for MCP errors
+ *
+ * This matches the JSON-RPC error object:
+ * {
+ *   code: number,
+ *   message: string,
+ *   data?: unknown
+ * }
+ * 
+ * We use ExtraFieldsTrait to allow arbitrary additional fields if needed.
  */
 class ErrorData implements McpModel {
     use ExtraFieldsTrait;
@@ -47,12 +56,19 @@ class ErrorData implements McpModel {
 
     public function validate(): void {
         if (empty($this->message)) {
-            throw new \InvalidArgumentException('Error message cannot be empty');
+            throw new InvalidArgumentException('Error message cannot be empty');
         }
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
+        $data = [
+            'code' => $this->code,
+            'message' => $this->message,
+        ];
+        if ($this->data !== null) {
+            $data['data'] = $this->data;
+        }
+
         return array_merge($data, $this->extraFields);
     }
 }

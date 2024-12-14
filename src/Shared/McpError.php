@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -28,15 +29,14 @@ declare(strict_types=1);
 
 namespace Mcp\Shared;
 
-use JsonSerializable;
-use Mcp\Types\McpModel;
-use Mcp\Types\ExtraFieldsTrait;
-use InvalidArgumentException;
+use Exception;
 
 /**
  * Exception type raised when an error arrives over an MCP connection.
+ *
+ * Wraps the ErrorData object in an exception for easy error handling.
  */
-class McpError extends \Exception {
+class McpError extends Exception {
     public function __construct(
         public readonly ErrorData $error,
         ?\Throwable $previous = null

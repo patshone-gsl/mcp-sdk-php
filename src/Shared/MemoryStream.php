@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -29,32 +30,44 @@ declare(strict_types=1);
 namespace Mcp\Shared;
 
 use Mcp\Types\JsonRpcMessage;
-use Mcp\Client\ClientSession;
-use Mcp\Server\Server;
+use Exception;
 
 /**
- * In-memory transports for MCP communication
+ * A simple in-memory message queue for MCP communication.
+ *
+ * This class simulates a transport channel in memory. It can store both
+ * JsonRpcMessage objects and Exception objects. The receive method returns
+ * the oldest inserted item first, acting as a FIFO queue.
  */
 class MemoryStream {
-    private array $messages = [];
-    private array $exceptions = [];
+    /** @var array<JsonRpcMessage|Exception> */
+    private array $queue = [];
 
-    public function send($message): void {
-        if ($message instanceof \Exception) {
-            $this->exceptions[] = $message;
-        } else {
-            $this->messages[] = $message;
+    /**
+     * Sends a message or an exception into the stream.
+     *
+     * @param JsonRpcMessage|Exception $item
+     */
+    public function send($item): void {
+        if (!$item instanceof JsonRpcMessage && !$item instanceof Exception) {
+            throw new \InvalidArgumentException('Item must be a JsonRpcMessage or an Exception');
         }
+        $this->queue[] = $item;
     }
 
+    /**
+     * Receives the oldest message or exception from the stream.
+     *
+     * @return JsonRpcMessage|Exception|null Returns the next item or null if empty.
+     */
     public function receive() {
-        if (!empty($this->exceptions)) {
-            return array_shift($this->exceptions);
-        }
-        return array_shift($this->messages);
+        return array_shift($this->queue);
     }
 
+    /**
+     * Checks if the stream is empty.
+     */
     public function isEmpty(): bool {
-        return empty($this->messages) && empty($this->exceptions);
+        return empty($this->queue);
     }
 }

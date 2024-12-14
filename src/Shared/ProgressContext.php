@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -29,11 +30,12 @@ declare(strict_types=1);
 namespace Mcp\Shared;
 
 use Mcp\Types\ProgressToken;
-use Mcp\Types\McpModel;
-use InvalidArgumentException;
 
 /**
  * Progress tracking context
+ *
+ * Similar to the Python ProgressContext class, but synchronous.
+ * Tracks current progress and sends progress notifications via the session.
  */
 class ProgressContext {
     private float $current = 0.0;
@@ -44,6 +46,9 @@ class ProgressContext {
         private readonly ?float $total = null,
     ) {}
 
+    /**
+     * Increments the current progress by the given amount and sends a progress notification.
+     */
     public function progress(float $amount): void {
         $this->current += $amount;
         $this->session->sendProgressNotification(

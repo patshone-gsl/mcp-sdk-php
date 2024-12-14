@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -28,14 +29,18 @@ declare(strict_types=1);
 
 namespace Mcp\Shared;
 
-use Mcp\Types\ProgressToken;
 use Mcp\Types\McpModel;
+use Mcp\Types\ExtraFieldsTrait;
 use InvalidArgumentException;
 
 /**
  * Progress information model
+ *
+ * Equivalent to the Python Progress(BaseModel) class.
  */
 class Progress implements McpModel {
+    use ExtraFieldsTrait;
+
     public function __construct(
         public readonly float $progress,
         public readonly ?float $total = null,
@@ -43,14 +48,17 @@ class Progress implements McpModel {
 
     public function validate(): void {
         if ($this->total !== null && $this->total < $this->progress) {
-            throw new \InvalidArgumentException('Total cannot be less than progress');
+            throw new InvalidArgumentException('Total cannot be less than progress');
         }
     }
 
     public function jsonSerialize(): mixed {
-        return [
+        $data = [
             'progress' => $this->progress,
-            'total' => $this->total,
         ];
+        if ($this->total !== null) {
+            $data['total'] = $this->total;
+        }
+        return array_merge($data, $this->extraFields);
     }
 }
