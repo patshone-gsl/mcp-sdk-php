@@ -33,7 +33,7 @@ namespace Mcp\Types;
  */
 trait ExtraFieldsTrait
 {
-    private array $extraFields = [];
+    protected array $extraFields = [];
 
     public function __set(string $name, mixed $value): void
     {

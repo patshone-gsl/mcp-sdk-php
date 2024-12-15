@@ -28,24 +28,21 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Params for InitializeRequest
- * {
- *   protocolVersion: string;
- *   capabilities: ClientCapabilities;
- *   clientInfo: Implementation;
- * }
- */
-class InitializeRequestParams implements McpModel {
-    use ExtraFieldsTrait;
-
+class InitializeRequestParams extends RequestParams {
     public function __construct(
         public readonly string $protocolVersion,
         public readonly ClientCapabilities $capabilities,
         public readonly Implementation $clientInfo,
-    ) {}
+        ?Meta $_meta = null
+    ) {
+        // Call parent constructor, passing $_meta if needed. If you don't have meta for Initialize, you can just pass null.
+        parent::__construct($_meta);
+    }
 
     public function validate(): void {
+        // First call parent to validate _meta if present
+        parent::validate();
+
         if (empty($this->protocolVersion)) {
             throw new \InvalidArgumentException('Protocol version cannot be empty');
         }
@@ -59,6 +56,8 @@ class InitializeRequestParams implements McpModel {
             'capabilities' => $this->capabilities,
             'clientInfo' => $this->clientInfo,
         ];
+
+        // Merge with extra fields from parent (ExtraFieldsTrait)
         return array_merge($data, $this->extraFields);
     }
 }

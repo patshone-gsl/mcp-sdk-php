@@ -45,7 +45,7 @@ class JSONRPCError implements McpModel {
     use ExtraFieldsTrait;
 
     public function __construct(
-        public readonly string $jsonrpc = '2.0',
+        public readonly string $jsonrpc,
         public RequestId $id,
         public JsonRpcErrorObject $error,
     ) {}

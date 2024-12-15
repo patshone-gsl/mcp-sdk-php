@@ -41,7 +41,7 @@ class JSONRPCNotification extends Notification {
     use ExtraFieldsTrait;
 
     public function __construct(
-        public readonly string $jsonrpc = '2.0',
+        public readonly string $jsonrpc,
         ?NotificationParams $params = null,
         string $method = '',
     ) {

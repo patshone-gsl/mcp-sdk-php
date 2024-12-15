@@ -31,6 +31,11 @@ namespace Mcp\Server;
 
 use Mcp\Types\JsonRpcMessage;
 use Mcp\Types\ServerCapabilities;
+use Mcp\Types\ServerPromptsCapability;
+use Mcp\Types\ServerResourcesCapability;
+use Mcp\Types\ServerToolsCapability;
+use Mcp\Types\ServerLoggingCapability;
+use Mcp\Types\ExperimentalCapabilities;
 use Mcp\Types\LoggingLevel;
 use Mcp\Types\RequestId;
 use Mcp\Shared\McpError;
@@ -94,42 +99,43 @@ class Server {
         NotificationOptions $notificationOptions,
         array $experimentalCapabilities
     ): ServerCapabilities {
-        // Check which handlers are registered to determine capabilities
+        // Initialize capabilities as null
         $promptsCapability = null;
         $resourcesCapability = null;
         $toolsCapability = null;
         $loggingCapability = null;
-
+    
         if (isset($this->requestHandlers['prompts/list'])) {
-            // This implies we can list prompts and maybe handle prompt changes
-            $promptsCapability = [
-                'listChanged' => $notificationOptions->promptsChanged
-            ];
+            $promptsCapability = new ServerPromptsCapability(
+                listChanged: $notificationOptions->promptsChanged
+            );
         }
-
+    
         if (isset($this->requestHandlers['resources/list'])) {
-            $resourcesCapability = [
-                'subscribe' => false,
-                'listChanged' => $notificationOptions->resourcesChanged
-            ];
+            $resourcesCapability = new ServerResourcesCapability(
+                subscribe: false, // Adjust based on your requirements
+                listChanged: $notificationOptions->resourcesChanged
+            );
         }
-
+    
         if (isset($this->requestHandlers['tools/list'])) {
-            $toolsCapability = [
-                'listChanged' => $notificationOptions->toolsChanged
-            ];
+            $toolsCapability = new ServerToolsCapability(
+                listChanged: $notificationOptions->toolsChanged
+            );
         }
-
+    
         if (isset($this->requestHandlers['logging/setLevel'])) {
-            $loggingCapability = []; // some logging capabilities defined
+            $loggingCapability = new ServerLoggingCapability(
+                // Provide necessary initialization parameters
+            );
         }
-
+    
         return new ServerCapabilities(
             prompts: $promptsCapability,
             resources: $resourcesCapability,
             tools: $toolsCapability,
             logging: $loggingCapability,
-            experimental: $experimentalCapabilities
+            experimental: new ExperimentalCapabilities($experimentalCapabilities) // Assuming a constructor
         );
     }
 

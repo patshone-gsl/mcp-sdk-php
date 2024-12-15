@@ -87,8 +87,7 @@ class ClientSession extends BaseSession {
      */
     public function initialize(): void {
         $request = new InitializeRequest(
-            method: "initialize",
-            params: new InitializeRequestParams(
+            new InitializeRequestParams(
                 protocolVersion: Version::LATEST_PROTOCOL_VERSION,
                 capabilities: new ClientCapabilities(
                     roots: new ClientRootsCapability(listChanged: true)
@@ -261,62 +260,51 @@ class ClientSession extends BaseSession {
         $this->writeStream->send($message);
     }
 
-    protected function waitForResponse(int $requestId, string $resultType): mixed {
+    /**
+     * Updated waitForResponse method to match the parent class signature and logic.
+     * It now returns a McpModel and relies on the parent class logic
+     * to set $futureResult once the correct response arrives.
+     */
+    protected function waitForResponse(int $requestIdValue, string $resultType, ?\Mcp\Types\McpModel &$futureResult): \Mcp\Types\McpModel
+    {
         $timeout = $this->getReadTimeout();
         $startTime = microtime(true);
 
-        while (true) {
+        while ($futureResult === null) {
             if ($timeout !== null && (microtime(true) - $startTime) >= $timeout) {
-                throw new RuntimeException("Timed out waiting for response to request $requestId");
+                throw new RuntimeException("Timed out waiting for response to request $requestIdValue");
             }
 
-            $message = $this->readStream->receive();
-            if ($message === null) {
+            $message = $this->readNextMessage();
+            $this->handleIncomingMessage($message);
+        }
+
+        return $futureResult;
+    }
+
+    /**
+     * Implementing readNextMessage as required by BaseSession.
+     * Blocks until a valid JsonRpcMessage is received.
+     */
+    protected function readNextMessage(): JsonRpcMessage {
+        while (true) {
+            $msg = $this->readStream->receive();
+            if ($msg === null) {
+                // No message yet, wait briefly and try again
                 usleep(10000);
                 continue;
             }
 
-            if ($message instanceof \Exception) {
-                // If the readStream returned an exception, rethrow it
-                throw $message;
+            if ($msg instanceof \Exception) {
+                // Rethrow the exception
+                throw $msg;
             }
 
-            // $message should be a JsonRpcMessage
-            if (!$message instanceof JsonRpcMessage) {
+            if (!$msg instanceof JsonRpcMessage) {
                 throw new RuntimeException("Invalid message type received from readStream");
             }
 
-            // If this message has an id and matches our requestId, it might be the response.
-            if ($message->id !== null && $message->id->getValue() === $requestId) {
-                // Check if it's an error response
-                if ($message->error !== null) {
-                    $code = $message->error['code'] ?? 0;
-                    $msg = $message->error['message'] ?? 'Unknown error';
-                    throw new RuntimeException("Server returned an error: [{$code}] {$msg}");
-                }
-
-                // If it's a success response, construct the result object
-                if ($message->result === null) {
-                    // Possibly EmptyResult or no data
-                    if ($resultType === \Mcp\Types\EmptyResult::class) {
-                        return new \Mcp\Types\EmptyResult();
-                    }
-                    return null;
-                }
-
-                // Construct the $resultType object from $message->result
-                // If $message->result is an array, use argument unpacking
-                if (is_array($message->result)) {
-                    return new $resultType(...$message->result);
-                } else {
-                    // If result is not an array, just pass it directly if constructor allows it
-                    return new $resultType($message->result);
-                }
-            }
-
-            // If not our response, we can call handleIncomingMessage() to process server requests/notifications
-            $this->handleIncomingMessage($message);
-            // Then loop again until we find our response.
+            return $msg;
         }
     }
 }
