@@ -42,10 +42,17 @@ use Mcp\Types\InitializeRequestParams;
 use Mcp\Types\Result;
 use Mcp\Server\InitializationOptions;
 use Mcp\Server\Transport\Transport;
+use Mcp\Types\JSONRPCResponse;
+use Mcp\Types\JSONRPCError;
+use Mcp\Types\JSONRPCNotification;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
+use InvalidArgumentException;
 
+/**
+ * Enumeration to represent the initialization state of the server session.
+ */
 enum InitializationState: int {
     case NotInitialized = 1;
     case Initializing = 2;
@@ -75,8 +82,15 @@ class ServerSession extends BaseSession {
             receiveRequestType: ClientRequest::class,
             receiveNotificationType: ClientNotification::class
         );
+
+        // Register handlers for incoming requests and notifications
+        $this->onRequest([$this, 'handleRequest']);
+        $this->onNotification([$this, 'handleNotification']);
     }
 
+    /**
+     * Starts the server session.
+     */
     public function start(): void {
         if ($this->isInitialized) {
             throw new RuntimeException('Session already initialized');
@@ -84,15 +98,19 @@ class ServerSession extends BaseSession {
 
         $this->isInitialized = true;
         $this->transport->start();
+        $this->initialize();
     }
 
+    /**
+     * Stops the server session.
+     */
     public function stop(): void {
         if (!$this->isInitialized) {
             return;
         }
 
         $this->transport->stop();
-        $this->isInitialized = false;
+        $this->close();
     }
 
     /**
@@ -138,10 +156,13 @@ class ServerSession extends BaseSession {
     /**
      * Handle incoming requests. If it's the initialize request, handle it specially.
      * Otherwise, ensure initialization is complete before handling other requests.
+     *
+     * @param ClientRequest $request The incoming client request.
+     * @param callable $respond The responder callable.
      */
-    protected function handleRequest(JsonRpcMessage $message): void {
-        if ($message->method === 'initialize') {
-            $this->handleInitialize($message);
+    public function handleRequest(ClientRequest $request, callable $respond): void {
+        if ($request->method === 'initialize') {
+            $this->handleInitialize($request, $respond);
             return;
         }
 
@@ -149,16 +170,21 @@ class ServerSession extends BaseSession {
             throw new RuntimeException('Received request before initialization was complete');
         }
 
-        // Delegate to parent to handle other requests if needed
-        parent::handleRequest($message);
+        // Handle other requests here
+        // Example: $this->handleOtherRequest($request, $respond);
+        // For demonstration, we'll just log the request
+        $this->logger->info('Received request: ' . $request->method);
     }
 
     /**
      * Handle incoming notifications. If it's the "initialized" notification, mark state as Initialized.
+     *
+     * @param ClientNotification $notification The incoming client notification.
      */
-    protected function handleNotification(JsonRpcMessage $message): void {
-        if ($message->method === 'notifications/initialized') {
+    public function handleNotification(ClientNotification $notification): void {
+        if ($notification->method === 'notifications/initialized') {
             $this->initializationState = InitializationState::Initialized;
+            $this->logger->info('Client has completed initialization.');
             return;
         }
 
@@ -166,15 +192,22 @@ class ServerSession extends BaseSession {
             throw new RuntimeException('Received notification before initialization was complete');
         }
 
-        // Delegate to parent to handle other notifications
-        parent::handleNotification($message);
+        // Handle other notifications here
+        // Example: $this->handleOtherNotification($notification);
+        // For demonstration, we'll just log the notification
+        $this->logger->info('Received notification: ' . $notification->method);
     }
 
-    private function handleInitialize(JsonRpcMessage $message): void {
+    /**
+     * Handle the initialize request from the client.
+     *
+     * @param ClientRequest $request The initialize request.
+     * @param callable $respond The responder callable.
+     */
+    private function handleInitialize(ClientRequest $request, callable $respond): void {
         $this->initializationState = InitializationState::Initializing;
-        // Assume $message->params is typed InitializeRequestParams.
         /** @var InitializeRequestParams $params */
-        $params = $message->params;
+        $params = $request->params;
         $this->clientParams = $params;
 
         $result = new InitializeResult(
@@ -186,81 +219,126 @@ class ServerSession extends BaseSession {
             )
         );
 
-        $response = new JsonRpcMessage(
-            jsonrpc: '2.0',
-            id: $message->id,
-            result: $result
-        );
+        $respond($result);
 
-        $this->transport->writeMessage($response);
+        $this->initializationState = InitializationState::Initialized;
+        $this->logger->info('Initialization complete.');
     }
 
+    /**
+     * Sends a log message as a notification to the client.
+     *
+     * @param LoggingLevel $level The logging level.
+     * @param mixed $data The data to log.
+     * @param string|null $logger The logger name.
+     */
     public function sendLogMessage(
         LoggingLevel $level,
         mixed $data,
         ?string $logger = null
     ): void {
-        $notification = new JsonRpcMessage(
+        $params = [
+            'level' => $level->value,
+            'data' => $data,
+            'logger' => $logger
+        ];
+
+        $jsonRpcNotification = new JSONRPCNotification(
             jsonrpc: '2.0',
             method: 'notifications/message',
-            params: [
-                'level' => $level,
-                'data' => $data,
-                'logger' => $logger
-            ]
+            params: $params
         );
 
-        $this->transport->writeMessage($notification);
+        $notification = new JsonRpcMessage($jsonRpcNotification);
+
+        $this->writeMessage($notification);
     }
 
+    /**
+     * Sends a resource updated notification to the client.
+     *
+     * @param string $uri The URI of the updated resource.
+     */
     public function sendResourceUpdated(string $uri): void {
-        $notification = new JsonRpcMessage(
+        $params = ['uri' => $uri];
+
+        $jsonRpcNotification = new JSONRPCNotification(
             jsonrpc: '2.0',
             method: 'notifications/resources/updated',
-            params: ['uri' => $uri]
+            params: $params
         );
 
-        $this->transport->writeMessage($notification);
+        $notification = new JsonRpcMessage($jsonRpcNotification);
+
+        $this->writeMessage($notification);
     }
 
+    /**
+     * Sends a progress notification for a request currently in progress.
+     *
+     * @param string|int $progressToken The progress token.
+     * @param float $progress The current progress.
+     * @param float|null $total The total progress value.
+     */
     public function writeProgressNotification(
         string|int $progressToken,
         float $progress,
         ?float $total = null
     ): void {
-        $notification = new JsonRpcMessage(
+        $params = [
+            'progressToken' => $progressToken,
+            'progress' => $progress,
+            'total' => $total
+        ];
+
+        $jsonRpcNotification = new JSONRPCNotification(
             jsonrpc: '2.0',
             method: 'notifications/progress',
-            params: [
-                'progressToken' => $progressToken,
-                'progress' => $progress,
-                'total' => $total
-            ]
+            params: $params
         );
 
-        $this->transport->writeMessage($notification);
+        $notification = new JsonRpcMessage($jsonRpcNotification);
+
+        $this->writeMessage($notification);
     }
 
+    /**
+     * Sends a resource list changed notification to the client.
+     */
     public function sendResourceListChanged(): void {
         $this->writeNotification('notifications/resources/list_changed');
     }
 
+    /**
+     * Sends a tool list changed notification to the client.
+     */
     public function sendToolListChanged(): void {
         $this->writeNotification('notifications/tools/list_changed');
     }
 
+    /**
+     * Sends a prompt list changed notification to the client.
+     */
     public function sendPromptListChanged(): void {
         $this->writeNotification('notifications/prompts/list_changed');
     }
 
+    /**
+     * Writes a generic notification to the client.
+     *
+     * @param string $method The method name of the notification.
+     * @param array|null $params The parameters of the notification.
+     */
     private function writeNotification(string $method, ?array $params = null): void {
-        $notification = new JsonRpcMessage(
+        $jsonRpcNotification = new JSONRPCNotification(
             jsonrpc: '2.0',
             method: $method,
             params: $params
         );
 
-        $this->transport->writeMessage($notification);
+        $notification = new JsonRpcMessage($jsonRpcNotification);
+
+        $this->writeMessage($notification);
     }
 
     /**
@@ -268,7 +346,13 @@ class ServerSession extends BaseSession {
      */
 
     protected function startMessageProcessing(): void {
-        // If needed, set up any loops or triggers to read messages here
+        // Start reading messages from the transport
+        // This could be a loop or a separate thread in a real implementation
+        // For demonstration, we'll use a simple loop
+        while ($this->isInitialized) {
+            $message = $this->readNextMessage();
+            $this->handleIncomingMessage($message);
+        }
     }
 
     protected function stopMessageProcessing(): void {

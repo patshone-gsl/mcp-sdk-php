@@ -45,31 +45,58 @@ use Mcp\Types\Result;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
+use InvalidArgumentException;
 
 /**
+ * Class SseServerTransport
+ *
  * Server-side SSE transport for MCP servers.
  *
- * This transport simulates a similar setup to the Python code:
- * - `handleSseRequest()` sets up SSE headers and returns a session_id for the client.
- * - `handlePostRequest()` receives messages from the client (POST) and passes them to the session.
- * - `writeMessage()` sends events to all connected SSE clients.
+ * This transport manages Server-Sent Events (SSE) connections, allowing the server
+ * to push JSON-RPC messages to connected clients and handle incoming messages via POST requests.
  */
 class SseServerTransport implements Transport, SessionAwareTransport {
+    /** @var array<string, array{created: int, lastSeen: int, output: resource}> */
     private array $sessions = [];
+    /** @var BaseSession|null */
     private ?BaseSession $session = null;
+    /** @var bool */
     private bool $isStarted = false;
+    /** @var LoggerInterface */
+    private LoggerInterface $logger;
 
+    /**
+     * SseServerTransport constructor.
+     *
+     * @param string                $endpoint The SSE endpoint URL.
+     * @param LoggerInterface|null  $logger   PSR-3 compliant logger.
+     *
+     * @throws InvalidArgumentException If the endpoint is invalid.
+     */
     public function __construct(
         private readonly string $endpoint,
-        private readonly LoggerInterface $logger = new NullLogger()
-    ) {}
+        ?LoggerInterface $logger = null
+    ) {
+        if (empty($endpoint)) {
+            throw new InvalidArgumentException('Endpoint cannot be empty.');
+        }
 
+        $this->logger = $logger ?? new NullLogger();
+    }
+
+    /**
+     * Starts the SSE transport.
+     *
+     * @throws RuntimeException If the transport is already started or if no session is attached.
+     *
+     * @return void
+     */
     public function start(): void {
         if ($this->isStarted) {
             throw new RuntimeException('Transport already started');
         }
 
-        if (!$this->session) {
+        if ($this->session === null) {
             throw new RuntimeException('No session attached to transport');
         }
 
@@ -77,9 +104,20 @@ class SseServerTransport implements Transport, SessionAwareTransport {
         $this->logger->debug('SSE transport started');
     }
 
+    /**
+     * Stops the SSE transport and cleans up all sessions.
+     *
+     * @return void
+     */
     public function stop(): void {
         if (!$this->isStarted) {
             return;
+        }
+
+        // Close all SSE connections
+        foreach ($this->sessions as $sessionId => $session) {
+            fclose($session['output']);
+            $this->logger->debug("Closed SSE connection: $sessionId");
         }
 
         $this->sessions = [];
@@ -87,25 +125,43 @@ class SseServerTransport implements Transport, SessionAwareTransport {
         $this->logger->debug('SSE transport stopped');
     }
 
+    /**
+     * Attaches a session to the transport.
+     *
+     * @param BaseSession $session The session to attach.
+     *
+     * @return void
+     */
     public function attachSession(BaseSession $session): void {
         $this->session = $session;
+        $this->logger->debug('Session attached to SSE transport');
     }
 
     /**
-     * Handles initial SSE connection from a client.
+     * Handles the initial SSE connection from a client.
      *
      * @param resource $output An output stream resource to write SSE events to.
-     * @return string The generated session_id for this connection.
+     *
+     * @return string The generated session ID for this connection.
+     *
+     * @throws InvalidArgumentException If the output is not a valid resource.
+     * @throws RuntimeException         If the transport is not started.
      */
     public function handleSseRequest($output): string {
         if (!$this->isStarted) {
             throw new RuntimeException('Transport not started');
         }
 
+        if (!is_resource($output)) {
+            throw new InvalidArgumentException('Output must be a valid resource.');
+        }
+
         $sessionId = bin2hex(random_bytes(16));
+        $currentTime = time();
+
         $this->sessions[$sessionId] = [
-            'created' => time(),
-            'lastSeen' => time(),
+            'created' => $currentTime,
+            'lastSeen' => $currentTime,
             'output' => $output,
         ];
 
@@ -113,21 +169,26 @@ class SseServerTransport implements Transport, SessionAwareTransport {
         header('Content-Type: text/event-stream');
         header('Cache-Control: no-cache');
         header('Connection: keep-alive');
-        header('X-Accel-Buffering: no');
+        header('X-Accel-Buffering: no'); // Disable response buffering
 
-        // Send endpoint information event
-        $this->sendSseEvent($sessionId, 'endpoint', $this->endpoint . '?session_id=' . $sessionId);
+        // Send initial event with endpoint information
+        $this->sendSseEvent($sessionId, 'endpoint', "{$this->endpoint}?session_id={$sessionId}");
 
         $this->logger->debug("New SSE connection established: $sessionId");
+
         return $sessionId;
     }
 
     /**
-     * Handles incoming message from client via POST.
-     * 
-     * @param string $sessionId The session ID provided by the client as a query param.
-     * @param string $content The JSON content from the POST body.
-     * @throws McpError If parsing or validation fails.
+     * Handles incoming messages from the client via POST requests.
+     *
+     * @param string $sessionId The session ID provided by the client as a query parameter.
+     * @param string $content   The JSON content from the POST body.
+     *
+     * @throws McpError              If parsing or validation fails.
+     * @throws RuntimeException       If the transport is not started or the session is invalid.
+     *
+     * @return void
      */
     public function handlePostRequest(string $sessionId, string $content): void {
         if (!$this->isStarted) {
@@ -136,8 +197,8 @@ class SseServerTransport implements Transport, SessionAwareTransport {
 
         if (!isset($this->sessions[$sessionId])) {
             throw new McpError(new ErrorData(
-                -32001,
-                'Session not found'
+                code: -32001,
+                message: 'Session not found'
             ));
         }
 
@@ -145,25 +206,26 @@ class SseServerTransport implements Transport, SessionAwareTransport {
             $data = json_decode($content, true, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException $e) {
             throw new McpError(new ErrorData(
-                -32700,
-                'Parse error: ' . $e->getMessage()
+                code: -32700,
+                message: 'Parse error: ' . $e->getMessage()
             ));
         }
 
-        // Validate jsonrpc version
+        // Validate 'jsonrpc' field
         if (!isset($data['jsonrpc']) || $data['jsonrpc'] !== '2.0') {
             throw new McpError(new ErrorData(
-                -32600,
-                'Invalid Request: jsonrpc version must be "2.0"'
+                code: -32600,
+                message: 'Invalid Request: jsonrpc version must be "2.0"'
             ));
         }
 
-        // Determine message type
+        // Determine message type based on presence of specific fields
         $hasMethod = array_key_exists('method', $data);
         $hasId = array_key_exists('id', $data);
         $hasResult = array_key_exists('result', $data);
         $hasError = array_key_exists('error', $data);
 
+        // Initialize RequestId if present
         $id = null;
         if ($hasId) {
             $id = new RequestId($data['id']);
@@ -171,48 +233,58 @@ class SseServerTransport implements Transport, SessionAwareTransport {
 
         try {
             if ($hasError) {
+                // It's a JSONRPCError
+                $errorData = $data['error'];
+                if (!isset($errorData['code']) || !isset($errorData['message'])) {
+                    throw new McpError(new ErrorData(
+                        code: -32600,
+                        message: 'Invalid Request: error object must contain code and message'
+                    ));
+                }
+
                 $errorObj = new JsonRpcErrorObject(
-                    code: $data['error']['code'] ?? 0,
-                    message: $data['error']['message'] ?? '',
-                    data: $data['error']['data'] ?? null
+                    code: $errorData['code'],
+                    message: $errorData['message'],
+                    data: $errorData['data'] ?? null
                 );
+
                 $errorMsg = new JSONRPCError(
                     jsonrpc: '2.0',
-                    id: $id ?? new RequestId(''),
+                    id: $id ?? new RequestId(''), // 'id' must be present for error
                     error: $errorObj
                 );
+
                 $errorMsg->validate();
                 $message = new JsonRpcMessage($errorMsg);
             } elseif ($hasMethod && $hasId && !$hasResult) {
-                // JSONRPCRequest
-                $params = null;
-                if (isset($data['params']) && is_array($data['params'])) {
-                    $params = $this->buildRequestParams($data['params']);
-                }
+                // It's a JSONRPCRequest
+                $method = $data['method'];
+                $params = isset($data['params']) && is_array($data['params']) ? $this->parseRequestParams($data['params']) : null;
+
                 $req = new JSONRPCRequest(
                     jsonrpc: '2.0',
                     id: $id,
                     params: $params,
-                    method: $data['method']
+                    method: $method
                 );
+
                 $req->validate();
                 $message = new JsonRpcMessage($req);
             } elseif ($hasMethod && !$hasId && !$hasResult && !$hasError) {
-                // JSONRPCNotification
-                $params = null;
-                if (isset($data['params']) && is_array($data['params'])) {
-                    $params = $this->buildNotificationParams($data['params']);
-                }
+                // It's a JSONRPCNotification
+                $method = $data['method'];
+                $params = isset($data['params']) && is_array($data['params']) ? $this->parseNotificationParams($data['params']) : null;
 
                 $not = new JSONRPCNotification(
                     jsonrpc: '2.0',
                     params: $params,
-                    method: $data['method']
+                    method: $method
                 );
+
                 $not->validate();
                 $message = new JsonRpcMessage($not);
             } elseif ($hasId && $hasResult && !$hasMethod && !$hasError) {
-                // JSONRPCResponse
+                // It's a JSONRPCResponse
                 $resultData = $data['result'];
                 $result = $this->buildResult($resultData);
 
@@ -221,20 +293,23 @@ class SseServerTransport implements Transport, SessionAwareTransport {
                     id: $id,
                     result: $result
                 );
+
                 $resp->validate();
                 $message = new JsonRpcMessage($resp);
             } else {
+                // Invalid message structure
                 throw new McpError(new ErrorData(
-                    -32600,
-                    'Invalid Request: Could not determine message type'
+                    code: -32600,
+                    message: 'Invalid Request: Could not determine message type'
                 ));
             }
 
+            // Update the session's last seen timestamp
             $this->sessions[$sessionId]['lastSeen'] = time();
             $this->logger->debug("Received message from session $sessionId");
-            
+
             // Pass message to the session
-            if ($this->session) {
+            if ($this->session !== null) {
                 $this->session->handleIncomingMessage($message);
             }
 
@@ -242,75 +317,137 @@ class SseServerTransport implements Transport, SessionAwareTransport {
             throw $e;
         } catch (\Exception $e) {
             throw new McpError(new ErrorData(
-                -32700,
-                'Parse error: ' . $e->getMessage()
+                code: -32700,
+                message: 'Parse error: ' . $e->getMessage()
             ));
         }
     }
 
+    /**
+     * Writes a JSON-RPC message to all connected SSE clients.
+     *
+     * @param JsonRpcMessage $message The JSON-RPC message to send.
+     *
+     * @throws RuntimeException If the transport is not started.
+     *
+     * @return void
+     */
     public function writeMessage(JsonRpcMessage $message): void {
         if (!$this->isStarted) {
             throw new RuntimeException('Transport not started');
         }
 
-        $json = json_encode($message,
-            JSON_UNESCAPED_SLASHES |
-            JSON_INVALID_UTF8_SUBSTITUTE
-        );
-
+        // Encode the JsonRpcMessage to JSON
+        $json = json_encode($message, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
         if ($json === false) {
             throw new RuntimeException('Failed to encode message as JSON: ' . json_last_error_msg());
         }
 
-        foreach (array_keys($this->sessions) as $sessionId) {
+        // Send the JSON-RPC message as an SSE event to all sessions
+        foreach ($this->sessions as $sessionId => $session) {
             $this->sendSseEvent($sessionId, 'message', $json);
         }
+
+        $this->logger->debug("Broadcasted message to all SSE sessions");
     }
 
+    /**
+     * Reads a message from the transport.
+     *
+     * Note: SSE does not provide a direct way to read messages from the client.
+     * Incoming messages are handled via `handlePostRequest`.
+     *
+     * @throws RuntimeException Always, since reading is handled differently.
+     *
+     * @return JsonRpcMessage|null Always returns null.
+     */
     public function readMessage(): ?JsonRpcMessage {
-        // SSE does not provide a direct way to read messages. The POST request handler deals with incoming messages.
-        // So this can return null, or we may never call this from the server logic.
+        // SSE is unidirectional (server to client), reading is handled via POST requests
         return null;
     }
 
     /**
-     * Builds a RequestParams object from an array.
+     * Processes a JSONRPCRequest message.
+     *
+     * @param JSONRPCRequest $request The JSON-RPC request to process.
+     *
+     * @throws McpError If processing fails.
+     *
+     * @return void
      */
-    private function buildRequestParams(array $paramsArr): RequestParams {
+    private function processRequest(JSONRPCRequest $request): void {
+        // This method can be implemented to handle requests if needed.
+        // Currently, incoming requests are handled via `handlePostRequest`.
+    }
+
+    /**
+     * Processes a JSONRPCNotification message.
+     *
+     * @param JSONRPCNotification $notification The JSON-RPC notification to process.
+     *
+     * @return void
+     */
+    private function processNotification(JSONRPCNotification $notification): void {
+        // This method can be implemented to handle notifications if needed.
+        // Currently, incoming notifications are handled via `handlePostRequest`.
+    }
+
+    /**
+     * Builds a RequestParams object from an associative array.
+     *
+     * @param array $paramsArr The parameters array from the JSON-RPC request.
+     *
+     * @return RequestParams The constructed RequestParams object.
+     */
+    private function parseRequestParams(array $paramsArr): RequestParams {
         $meta = null;
         if (isset($paramsArr['_meta']) && is_array($paramsArr['_meta'])) {
             $meta = $this->metaFromArray($paramsArr['_meta']);
         }
 
-        $params = new RequestParams($_meta = $meta);
-        foreach ($paramsArr as $k => $v) {
-            if ($k !== '_meta') {
-                $params->$k = $v;
+        $params = new RequestParams($_meta: $meta);
+
+        // Assign other parameters dynamically
+        foreach ($paramsArr as $key => $value) {
+            if ($key !== '_meta') {
+                $params->$key = $value;
             }
         }
+
         return $params;
     }
 
     /**
-     * Builds a NotificationParams object from an array.
+     * Builds a NotificationParams object from an associative array.
+     *
+     * @param array $paramsArr The parameters array from the JSON-RPC notification.
+     *
+     * @return NotificationParams The constructed NotificationParams object.
      */
-    private function buildNotificationParams(array $paramsArr): NotificationParams {
+    private function parseNotificationParams(array $paramsArr): NotificationParams {
         $meta = null;
         if (isset($paramsArr['_meta']) && is_array($paramsArr['_meta'])) {
             $meta = $this->metaFromArray($paramsArr['_meta']);
         }
 
-        $params = new NotificationParams($_meta = $meta);
-        foreach ($paramsArr as $k => $v) {
-            if ($k !== '_meta') {
-                $params->$k = $v;
+        $params = new NotificationParams($_meta: $meta);
+
+        // Assign other parameters dynamically
+        foreach ($paramsArr as $key => $value) {
+            if ($key !== '_meta') {
+                $params->$key = $value;
             }
         }
+
         return $params;
     }
 
     /**
-     * Builds a Result object from an array.
+     * Builds a Result object from an associative array.
+     *
+     * @param array $resultData The result data array from the JSON-RPC response.
+     *
+     * @return Result The constructed Result object.
      */
     private function buildResult(array $resultData): Result {
         $meta = null;
@@ -318,46 +455,76 @@ class SseServerTransport implements Transport, SessionAwareTransport {
             $meta = $this->metaFromArray($resultData['_meta']);
         }
 
-        $res = new Result($_meta = $meta);
-        foreach ($resultData as $k => $v) {
-            if ($k !== '_meta') {
-                $res->$k = $v;
+        $result = new Result($_meta: $meta);
+
+        // Assign other result fields dynamically
+        foreach ($resultData as $key => $value) {
+            if ($key !== '_meta') {
+                $result->$key = $value;
             }
         }
-        return $res;
+
+        return $result;
     }
 
     /**
      * Sends an SSE event to a specific session.
+     *
+     * @param string $sessionId The session ID to send the event to.
+     * @param string $event     The SSE event type.
+     * @param string $data      The data payload of the event.
+     *
+     * @return void
      */
     private function sendSseEvent(string $sessionId, string $event, string $data): void {
         if (!isset($this->sessions[$sessionId])) {
+            $this->logger->warning("Attempted to send SSE event to unknown session: $sessionId");
             return;
         }
 
-        $output = "event: {$event}\n";
-        $output .= "data: {$data}\n\n";
+        $output = $this->sessions[$sessionId]['output'];
 
-        $stream = $this->sessions[$sessionId]['output'];
-        fwrite($stream, $output);
-        fflush($stream);
+        $sseData = "event: {$event}\ndata: {$data}\n\n";
+
+        $bytesWritten = fwrite($output, $sseData);
+        if ($bytesWritten === false) {
+            $this->logger->error("Failed to write SSE event to session: $sessionId");
+            // Optionally, handle the broken connection by removing the session
+            fclose($output);
+            unset($this->sessions[$sessionId]);
+            return;
+        }
+
+        $this->logger->debug("Sent SSE event '{$event}' to session: $sessionId");
     }
 
     /**
      * Converts a meta array into a Meta object.
+     *
+     * @param array $metaArr The meta information array.
+     *
+     * @return \Mcp\Types\Meta The constructed Meta object.
      */
     private function metaFromArray(array $metaArr): \Mcp\Types\Meta {
         $meta = new \Mcp\Types\Meta();
-        foreach ($metaArr as $mk => $mv) {
-            $meta->$mk = $mv;
+        foreach ($metaArr as $key => $value) {
+            $meta->$key = $value;
         }
         return $meta;
     }
 
+    /**
+     * Cleans up expired sessions based on the maximum allowed age.
+     *
+     * @param int $maxAge Maximum age in seconds before a session is considered expired.
+     *
+     * @return void
+     */
     public function cleanupSessions(int $maxAge = 3600): void {
         $now = time();
         foreach ($this->sessions as $sessionId => $session) {
             if ($now - $session['lastSeen'] > $maxAge) {
+                fclose($session['output']);
                 unset($this->sessions[$sessionId]);
                 $this->logger->debug("Cleaned up expired session: $sessionId");
             }

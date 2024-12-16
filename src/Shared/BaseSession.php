@@ -107,26 +107,27 @@ abstract class BaseSession {
 
         // Convert the typed request into a JSON-RPC request message
         // Assuming $request has public properties: method, params
-        $jsonRpcRequest = new JsonRpcMessage(
+        $jsonRpcRequest = new JsonRpcMessage(new JSONRPCRequest(
             jsonrpc: '2.0',
             id: $requestId,
             method: $request->method,
-            params: $request->params ?? []
-        );
+            params: $request->params ?? null
+        ));
 
         // Store a handler that will be called when a response with this requestId is received
         $futureResult = null;
         $this->responseHandlers[$requestIdValue] = function (JsonRpcMessage $message) use (&$futureResult, $resultType): void {
-            // Called when a response with matching requestId arrives
-            if ($message->error !== null) {
+            $innerMessage = $message->message;
+
+            if ($innerMessage instanceof JSONRPCError) {
                 // It's an error response
                 // Convert to McpError
-                throw new McpError($message->error);
-            } elseif ($message->result !== null) {
+                throw new McpError($innerMessage->error);
+            } elseif ($innerMessage instanceof JSONRPCResponse) {
                 // It's a success response
                 // Validate the result using $resultType
                 /** @var McpModel $resultInstance */
-                $resultInstance = new $resultType(...$message->result);
+                $resultInstance = new $resultType($innerMessage->result);
                 $resultInstance->validate();
                 $futureResult = $resultInstance;
             } else {
@@ -148,11 +149,13 @@ abstract class BaseSession {
      */
     public function sendNotification(McpModel $notification): void {
         // Convert the typed notification into a JSON-RPC notification message
-        $jsonRpcMessage = new JsonRpcMessage(
+        $jsonRpcNotification = new JSONRPCNotification(
             jsonrpc: '2.0',
             method: $notification->method,
-            params: $notification->params ?? []
+            params: $notification->params ?? null
         );
+
+        $jsonRpcMessage = new JsonRpcMessage($jsonRpcNotification);
 
         $this->writeMessage($jsonRpcMessage);
     }
@@ -165,22 +168,25 @@ abstract class BaseSession {
     public function sendResponse(RequestId $requestId, mixed $response): void {
         if ($response instanceof ErrorData) {
             // Error response
-            $message = new JsonRpcMessage(
+            $jsonRpcError = new JSONRPCError(
                 jsonrpc: '2.0',
                 id: $requestId,
-                error: $response
+                error: new JsonRpcErrorObject(
+                    code: $response->code,
+                    message: $response->message,
+                    data: $response->data ?? null
+                )
             );
+            $message = new JsonRpcMessage($jsonRpcError);
         } else {
             // Success result
-            // Convert $response (McpModel) into an array
-            // Ideally we have a consistent method: $response->toArray() or using reflection
-            // Assuming public props or a jsonSerialize approach
-            $resultArray = $response->jsonSerialize();
-            $message = new JsonRpcMessage(
+            // Assuming $response implements jsonSerialize()
+            $jsonRpcResponse = new JSONRPCResponse(
                 jsonrpc: '2.0',
                 id: $requestId,
-                result: $resultArray
+                result: $response
             );
+            $message = new JsonRpcMessage($jsonRpcResponse);
         }
 
         $this->writeMessage($message);
@@ -194,13 +200,25 @@ abstract class BaseSession {
         float $progress,
         ?float $total = null
     ): void {
-        $notification = new ProgressNotification(
+        $progressNotification = new ProgressNotification(
             progressToken: $progressToken,
             progress: $progress,
             total: $total
         );
 
-        $this->sendNotification($notification);
+        $jsonRpcNotification = new JSONRPCNotification(
+            jsonrpc: '2.0',
+            method: $progressNotification->method,
+            params: [
+                'progressToken' => $progressToken,
+                'progress' => $progress,
+                'total' => $total
+            ]
+        );
+
+        $jsonRpcMessage = new JsonRpcMessage($jsonRpcNotification);
+
+        $this->writeMessage($jsonRpcMessage);
     }
 
     /**
@@ -225,39 +243,40 @@ abstract class BaseSession {
     protected function handleIncomingMessage(JsonRpcMessage $message): void {
         $this->validateMessage($message);
 
-        if ($message->id !== null) {
-            if ($message->method !== null) {
-                // It's a request
-                $request = $this->validateIncomingRequest($message);
+        $innerMessage = $message->message;
 
-                // Validate request
-                $request->validate();
+        if ($innerMessage instanceof JSONRPCRequest) {
+            // It's a request
+            $request = $this->validateIncomingRequest($innerMessage);
 
-                $responder = new RequestResponder(
-                    requestId: $message->id,
-                    params: $message->params['_meta'] ?? [],
-                    request: $request,
-                    session: $this
-                );
+            // Validate request
+            $request->validate();
 
-                // Call onRequest handlers
-                foreach ($this->requestHandlers as $handler) {
-                    $handler($responder);
-                }
-            } else {
-                // It's a response (no method)
-                if (isset($this->responseHandlers[$message->id->getValue()])) {
-                    $handler = $this->responseHandlers[$message->id->getValue()];
-                    unset($this->responseHandlers[$message->id->getValue()]);
-                    $handler($message);
-                } else {
-                    // Received a response for an unknown request ID
-                    // Log or handle error
-                }
+            $responder = new RequestResponder(
+                requestId: $innerMessage->id,
+                params: $innerMessage->params['_meta'] ?? [],
+                request: $request,
+                session: $this
+            );
+
+            // Call onRequest handlers
+            foreach ($this->requestHandlers as $handler) {
+                $handler($responder);
             }
-        } else if ($message->method !== null) {
+        } elseif ($innerMessage instanceof JSONRPCResponse || $innerMessage instanceof JSONRPCError) {
+            // It's a response
+            $requestIdValue = $innerMessage->id->getValue();
+            if (isset($this->responseHandlers[$requestIdValue])) {
+                $handler = $this->responseHandlers[$requestIdValue];
+                unset($this->responseHandlers[$requestIdValue]);
+                $handler($message);
+            } else {
+                // Received a response for an unknown request ID
+                // Log or handle error as appropriate
+            }
+        } elseif ($innerMessage instanceof JSONRPCNotification) {
             // It's a notification
-            $notification = $this->validateIncomingNotification($message);
+            $notification = $this->validateIncomingNotification($innerMessage);
             $notification->validate();
 
             // Call onNotification handlers
@@ -265,13 +284,14 @@ abstract class BaseSession {
                 $handler($notification);
             }
         } else {
-            // Invalid message: no id, no method
-            throw new InvalidArgumentException('Invalid message: no id and no method');
+            // Invalid message type
+            throw new InvalidArgumentException('Invalid message type received');
         }
     }
 
     private function validateMessage(JsonRpcMessage $message): void {
-        if ($message->jsonrpc !== '2.0') {
+        $innerMessage = $message->message;
+        if ($innerMessage->jsonrpc !== '2.0') {
             throw new InvalidArgumentException('Invalid JSON-RPC version');
         }
     }
@@ -284,10 +304,10 @@ abstract class BaseSession {
     }
 
     /**
-     * Converts an incoming JsonRpcMessage into a typed request object.
+     * Converts an incoming JSONRPCRequest into a typed request object.
      * @throws InvalidArgumentException If instantiation fails.
      */
-    private function validateIncomingRequest(JsonRpcMessage $message): McpModel {
+    private function validateIncomingRequest(JSONRPCRequest $message): McpModel {
         /** @var McpModel $request */
         $requestClass = $this->receiveRequestType;
         $request = new $requestClass(
@@ -298,10 +318,10 @@ abstract class BaseSession {
     }
 
     /**
-     * Converts an incoming JsonRpcMessage into a typed notification object.
+     * Converts an incoming JSONRPCNotification into a typed notification object.
      * @throws InvalidArgumentException If instantiation fails.
      */
-    private function validateIncomingNotification(JsonRpcMessage $message): McpModel {
+    private function validateIncomingNotification(JSONRPCNotification $message): McpModel {
         /** @var McpModel $notification */
         $notificationClass = $this->receiveNotificationType;
         $notification = new $notificationClass(

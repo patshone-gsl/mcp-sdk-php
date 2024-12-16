@@ -42,42 +42,61 @@ use Mcp\Types\RequestParams;
 use Mcp\Types\NotificationParams;
 use Mcp\Types\Result;
 use RuntimeException;
+use InvalidArgumentException;
 
 /**
- * STDIO-based transport implementation for MCP servers
+ * Class StdioServerTransport
+ *
+ * STDIO-based transport implementation for MCP servers.
+ * Handles reading from STDIN and writing to STDOUT using JSON-RPC 2.0 protocol.
  */
-class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
+class StdioServerTransport implements Transport {
+    /** @var resource */
     private $stdin;
+    /** @var resource */
     private $stdout;
+    /** @var array<string> */
     private array $writeBuffer = [];
+    /** @var bool */
     private bool $isStarted = false;
 
     /**
-     * @param resource|null $stdin Input stream (defaults to STDIN)
+     * StdioServerTransport constructor.
+     *
+     * @param resource|null $stdin  Input stream (defaults to STDIN)
      * @param resource|null $stdout Output stream (defaults to STDOUT)
+     *
+     * @throws InvalidArgumentException If provided streams are not valid resources.
      */
     public function __construct(
         $stdin = null,
         $stdout = null
     ) {
         if ($stdin !== null && !is_resource($stdin)) {
-            throw new \InvalidArgumentException('stdin must be a valid resource.');
+            throw new InvalidArgumentException('stdin must be a valid resource.');
         }
         if ($stdout !== null && !is_resource($stdout)) {
-            throw new \InvalidArgumentException('stdout must be a valid resource.');
+            throw new InvalidArgumentException('stdout must be a valid resource.');
         }
 
         $this->stdin = $stdin ?? STDIN;
         $this->stdout = $stdout ?? STDOUT;
     }
 
+    /**
+     * Starts the transport by setting streams to non-blocking mode if applicable.
+     *
+     * @throws RuntimeException If the transport is already started or if setting non-blocking mode fails.
+     */
     public function start(): void {
         if ($this->isStarted) {
             throw new RuntimeException('Transport already started');
         }
 
-        // Set streams to non-blocking mode if not on Windows
+        // Determine the operating system
         $os = PHP_OS_FAMILY;
+
+        // Set streams to non-blocking mode if not on Windows
         if ($os !== 'Windows') {
             if (!stream_set_blocking($this->stdin, false)) {
                 throw new RuntimeException('Failed to set stdin to non-blocking mode');
@@ -90,6 +109,9 @@ class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
         $this->isStarted = true;
     }
 
+    /**
+     * Stops the transport and flushes any remaining messages in the buffer.
+     */
     public function stop(): void {
         if (!$this->isStarted) {
             return;
@@ -99,26 +121,42 @@ class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
         $this->isStarted = false;
     }
 
+    /**
+     * Checks if there is data available to read from STDIN.
+     *
+     * @return bool True if data is available, false otherwise.
+     */
     public function hasDataAvailable(): bool {
         $read = [$this->stdin];
         $write = $except = [];
+        // Timeout of 0 for non-blocking check
         return stream_select($read, $write, $except, 0) > 0;
     }
 
+    /**
+     * Reads the next JSON-RPC message from STDIN.
+     *
+     * @return JsonRpcMessage|null The next message if available, or null if no data is present.
+     *
+     * @throws RuntimeException If the transport is not started.
+     * @throws McpError          If a JSON-RPC error occurs during parsing or validation.
+     */
     public function readMessage(): ?JsonRpcMessage {
         if (!$this->isStarted) {
             throw new RuntimeException('Transport not started');
         }
 
+        // Attempt to read a line from STDIN
         $line = fgets($this->stdin);
         if ($line === false) {
             return null; // No data available
         }
 
         try {
+            // Decode JSON with strict error handling
             $data = json_decode($line, true, 512, JSON_THROW_ON_ERROR);
         } catch (\JsonException $e) {
-            // Parse error
+            // JSON parse error
             throw new McpError(
                 new TypesErrorData(
                     code: -32700,
@@ -127,7 +165,7 @@ class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
             );
         }
 
-        // Validate jsonrpc version
+        // Validate 'jsonrpc' field
         if (!isset($data['jsonrpc']) || $data['jsonrpc'] !== '2.0') {
             throw new McpError(
                 new TypesErrorData(
@@ -137,13 +175,13 @@ class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
             );
         }
 
-        // Determine message type
+        // Determine message type based on presence of specific fields
         $hasMethod = array_key_exists('method', $data);
         $hasId = array_key_exists('id', $data);
         $hasResult = array_key_exists('result', $data);
         $hasError = array_key_exists('error', $data);
 
-        // Convert 'id' if present
+        // Initialize RequestId if present
         $id = null;
         if ($hasId) {
             $id = new RequestId($data['id']);
@@ -152,73 +190,63 @@ class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
         try {
             if ($hasError) {
                 // It's a JSONRPCError
-                // error should be { code: number, message: string, data?: any }
+                $errorData = $data['error'];
+                if (!isset($errorData['code']) || !isset($errorData['message'])) {
+                    throw new McpError(
+                        new TypesErrorData(
+                            code: -32600,
+                            message: 'Invalid Request: error object must contain code and message'
+                        )
+                    );
+                }
+
                 $errorObj = new JsonRpcErrorObject(
-                    code: $data['error']['code'] ?? 0,
-                    message: $data['error']['message'] ?? '',
-                    data: $data['error']['data'] ?? null
+                    code: $errorData['code'],
+                    message: $errorData['message'],
+                    data: $errorData['data'] ?? null
                 );
+
                 $errorMsg = new JSONRPCError(
                     jsonrpc: '2.0',
-                    id: $id ?? new RequestId(''), // must have id
+                    id: $id ?? new RequestId(''), // 'id' must be present for error
                     error: $errorObj
                 );
+
                 $errorMsg->validate();
                 return new JsonRpcMessage($errorMsg);
             } elseif ($hasMethod && $hasId && !$hasResult) {
                 // It's a JSONRPCRequest
-                // params should be processed into RequestParams
-                $params = null;
-                if (isset($data['params']) && is_array($data['params'])) {
-                    $params = new RequestParams(
-                        $_meta = isset($data['params']['_meta']) ? $this->metaFromArray($data['params']['_meta']) : null
-                    );
-                    // Set extra fields from params
-                    foreach ($data['params'] as $k => $v) {
-                        if ($k !== '_meta') {
-                            $params->$k = $v;
-                        }
-                    }
-                }
+                $method = $data['method'];
+                $params = isset($data['params']) && is_array($data['params']) ? $this->parseRequestParams($data['params']) : null;
 
                 $req = new JSONRPCRequest(
                     jsonrpc: '2.0',
                     id: $id,
                     params: $params,
-                    method: $data['method']
+                    method: $method
                 );
+
                 $req->validate();
                 return new JsonRpcMessage($req);
             } elseif ($hasMethod && !$hasId && !$hasResult && !$hasError) {
                 // It's a JSONRPCNotification
-                // params -> NotificationParams
-                $params = null;
-                if (isset($data['params']) && is_array($data['params'])) {
-                    $params = new NotificationParams(
-                        $_meta = isset($data['params']['_meta']) ? $this->metaFromArray($data['params']['_meta']) : null
-                    );
-                    foreach ($data['params'] as $k => $v) {
-                        if ($k !== '_meta') {
-                            $params->$k = $v;
-                        }
-                    }
-                }
+                $method = $data['method'];
+                $params = isset($data['params']) && is_array($data['params']) ? $this->parseNotificationParams($data['params']) : null;
 
                 $not = new JSONRPCNotification(
                     jsonrpc: '2.0',
                     params: $params,
-                    method: $data['method']
+                    method: $method
                 );
+
                 $not->validate();
                 return new JsonRpcMessage($not);
             } elseif ($hasId && $hasResult && !$hasMethod && !$hasError) {
                 // It's a JSONRPCResponse
-                // result should be processed into a Result object
                 $resultData = $data['result'];
-                // Create a generic Result (we have a Result class that allows arbitrary fields)
-                $result = new Result(
-                    $_meta = isset($resultData['_meta']) ? $this->metaFromArray($resultData['_meta']) : null
-                );
+
+                // Create a generic Result object
+                $result = new Result();
                 foreach ($resultData as $k => $v) {
                     if ($k !== '_meta') {
                         $result->$k = $v;
@@ -230,10 +258,11 @@ class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
                     id: $id,
                     result: $result
                 );
+
                 $resp->validate();
                 return new JsonRpcMessage($resp);
             } else {
-                // Invalid structure
+                // Invalid message structure
                 throw new McpError(
                     new TypesErrorData(
                         code: -32600,
@@ -255,23 +284,39 @@ class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
         }
     }
 
+    /**
+     * Writes a JSON-RPC message to STDOUT.
+     *
+     * @param JsonRpcMessage $message The JSON-RPC message to send.
+     *
+     * @throws RuntimeException If the transport is not started or if writing fails.
+     */
     public function writeMessage(JsonRpcMessage $message): void {
         if (!$this->isStarted) {
             throw new RuntimeException('Transport not started');
         }
 
-        $json = json_encode($message,
-            JSON_UNESCAPED_SLASHES |
-            JSON_INVALID_UTF8_SUBSTITUTE
-        );
-
+        // Encode the JsonRpcMessage to JSON
+        $json = json_encode($message, JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE);
         if ($json === false) {
             throw new RuntimeException('Failed to encode message as JSON: ' . json_last_error_msg());
         }
 
-        $this->writeBuffer[] = $json . "\n";
+        // Append newline as per JSON-RPC over STDIO specification
+        $json .= "\n";
+
+        // Buffer the message
+        $this->writeBuffer[] = $json;
+
+        // Attempt to flush immediately for non-blocking behavior
+        $this->flush();
     }
 
+    /**
+     * Flushes the write buffer by sending all buffered messages to STDOUT.
+     *
+     * @throws RuntimeException If writing to STDOUT fails.
+     */
     public function flush(): void {
         if (!$this->isStarted) {
             return;
@@ -285,27 +330,84 @@ class StdioServerTransport implements BufferedTransport, NonBlockingTransport {
                 throw new RuntimeException('Failed to write to stdout');
             }
 
-            // Handle partial writes
+            // Handle partial writes by re-buffering the unwritten part
             if ($written < strlen($data)) {
                 $this->writeBuffer = [substr($data, $written), ...$this->writeBuffer];
                 break;
             }
         }
 
+        // Ensure all buffered data is sent
         fflush($this->stdout);
     }
 
+    /**
+     * Creates a new instance of StdioServerTransport with default STDIN and STDOUT.
+     *
+     * @param resource|null $stdin  Input stream (defaults to STDIN)
+     * @param resource|null $stdout Output stream (defaults to STDOUT)
+     *
+     * @return self
+     */
     public static function create($stdin = null, $stdout = null): self {
         return new self($stdin, $stdout);
     }
 
     /**
-     * Helper to build a Meta object from an array
+     * Parses request parameters from an associative array.
+     *
+     * @param array $params The parameters array from the JSON-RPC request.
+     *
+     * @return RequestParams The parsed RequestParams object.
+     */
+    private function parseRequestParams(array $params): RequestParams {
+        $meta = isset($params['_meta']) ? $this->metaFromArray($params['_meta']) : null;
+
+        $requestParams = new RequestParams($_meta: $meta);
+
+        // Assign other parameters dynamically
+        foreach ($params as $key => $value) {
+            if ($key !== '_meta') {
+                $requestParams->$key = $value;
+            }
+        }
+
+        return $requestParams;
+    }
+
+    /**
+     * Parses notification parameters from an associative array.
+     *
+     * @param array $params The parameters array from the JSON-RPC notification.
+     *
+     * @return NotificationParams The parsed NotificationParams object.
+     */
+    private function parseNotificationParams(array $params): NotificationParams {
+        $meta = isset($params['_meta']) ? $this->metaFromArray($params['_meta']) : null;
+
+        $notificationParams = new NotificationParams($_meta: $meta);
+
+        // Assign other parameters dynamically
+        foreach ($params as $key => $value) {
+            if ($key !== '_meta') {
+                $notificationParams->$key = $value;
+            }
+        }
+
+        return $notificationParams;
+    }
+
+    /**
+     * Helper method to create a Meta object from an associative array.
+     *
+     * @param array $metaArr The meta information array.
+     *
+     * @return \Mcp\Types\Meta The constructed Meta object.
      */
     private function metaFromArray(array $metaArr): \Mcp\Types\Meta {
         $meta = new \Mcp\Types\Meta();
-        foreach ($metaArr as $mk => $mv) {
-            $meta->$mk = $mv;
+        foreach ($metaArr as $key => $value) {
+            $meta->$key = $value;
         }
         return $meta;
     }

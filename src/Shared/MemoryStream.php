@@ -48,10 +48,7 @@ class MemoryStream {
      *
      * @param JsonRpcMessage|Exception $item
      */
-    public function send($item): void {
-        if (!$item instanceof JsonRpcMessage && !$item instanceof Exception) {
-            throw new \InvalidArgumentException('Item must be a JsonRpcMessage or an Exception');
-        }
+    public function send(JsonRpcMessage|Exception $item): void {
         $this->queue[] = $item;
     }
 
@@ -60,8 +57,8 @@ class MemoryStream {
      *
      * @return JsonRpcMessage|Exception|null Returns the next item or null if empty.
      */
-    public function receive() {
-        return array_shift($this->queue);
+    public function receive(): JsonRpcMessage|Exception|null {
+        return array_shift($this->queue) ?? null;
     }
 
     /**
