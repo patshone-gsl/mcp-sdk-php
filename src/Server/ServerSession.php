@@ -268,8 +268,7 @@ class ServerSession extends BaseSession {
      */
 
     protected function startMessageProcessing(): void {
-        // ServerSession uses start() to begin transport processing, just call it here
-        $this->start();
+        // If needed, set up any loops or triggers to read messages here
     }
 
     protected function stopMessageProcessing(): void {
@@ -283,5 +282,16 @@ class ServerSession extends BaseSession {
     protected function waitForResponse(int $requestId, string $resultType): mixed {
         // The server typically does not wait for responses from the client.
         throw new RuntimeException('Server does not support waiting for responses from the client.');
+    }
+
+    protected function readNextMessage(): JsonRpcMessage {
+        while (true) {
+            $message = $this->transport->readMessage();
+            if ($message !== null) {
+                return $message;
+            }
+            // Sleep briefly to avoid busy-waiting when no messages are available
+            usleep(10000);
+        }
     }
 }
