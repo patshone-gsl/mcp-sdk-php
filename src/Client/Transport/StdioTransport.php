@@ -34,6 +34,13 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
 use InvalidArgumentException;
+use Exception; // Import the global Exception class
+use Mcp\Types\JSONRPCRequest;
+use Mcp\Types\JSONRPCNotification;
+use Mcp\Types\JSONRPCResponse;
+use Mcp\Types\JSONRPCError;
+use Mcp\Types\RequestId;
+use Mcp\Types\JsonRpcErrorObject;
 
 /**
  * Class StdioTransport
@@ -109,14 +116,15 @@ class StdioTransport {
             public function __construct($pipe, LoggerInterface $logger) {
                 $this->pipe = $pipe;
                 $this->logger = $logger;
+                // Removed parent::__construct();
             }
 
             /**
              * Receive a JsonRpcMessage from the server.
              *
-             * @return JsonRpcMessage|\Exception|null The received message, an exception, or null if no message is available.
+             * @return JsonRpcMessage|Exception|null The received message, an exception, or null if no message is available.
              */
-            public function receive() {
+            public function receive(): JsonRpcMessage|Exception|null {
                 $buffer = '';
                 while (($chunk = fgets($this->pipe)) !== false) {
                     $buffer .= $chunk;
@@ -164,15 +172,15 @@ class StdioTransport {
                     // It's a Request or Notification
                     if (isset($data['id'])) {
                         // It's a Request
-                        return new JsonRpcMessage(new \Mcp\Types\JSONRPCRequest(
+                        return new JsonRpcMessage(new JSONRPCRequest(
                             jsonrpc: '2.0',
-                            id: new \Mcp\Types\RequestId($data['id']),
+                            id: new RequestId($data['id']),
                             method: $data['method'],
                             params: $data['params'] ?? null
                         ));
                     } else {
                         // It's a Notification
-                        return new JsonRpcMessage(new \Mcp\Types\JSONRPCNotification(
+                        return new JsonRpcMessage(new JSONRPCNotification(
                             jsonrpc: '2.0',
                             method: $data['method'],
                             params: $data['params'] ?? null
@@ -183,10 +191,10 @@ class StdioTransport {
                     if (isset($data['error'])) {
                         // It's an Error
                         $errorData = $data['error'];
-                        return new JsonRpcMessage(new \Mcp\Types\JSONRPCError(
+                        return new JsonRpcMessage(new JSONRPCError(
                             jsonrpc: '2.0',
-                            id: isset($data['id']) ? new \Mcp\Types\RequestId($data['id']) : null,
-                            error: new \Mcp\Types\JsonRpcErrorObject(
+                            id: isset($data['id']) ? new RequestId($data['id']) : null,
+                            error: new JsonRpcErrorObject(
                                 code: $errorData['code'],
                                 message: $errorData['message'],
                                 data: $errorData['data'] ?? null
@@ -194,9 +202,9 @@ class StdioTransport {
                         ));
                     } else {
                         // It's a Response
-                        return new JsonRpcMessage(new \Mcp\Types\JSONRPCResponse(
+                        return new JsonRpcMessage(new JSONRPCResponse(
                             jsonrpc: '2.0',
-                            id: isset($data['id']) ? new \Mcp\Types\RequestId($data['id']) : null,
+                            id: isset($data['id']) ? new RequestId($data['id']) : null,
                             result: $data['result']
                         ));
                     }
@@ -213,18 +221,20 @@ class StdioTransport {
             public function __construct($pipe, LoggerInterface $logger) {
                 $this->pipe = $pipe;
                 $this->logger = $logger;
+                // Removed parent::__construct();
             }
 
             /**
-             * Send a JsonRpcMessage to the server.
+             * Send a JsonRpcMessage or Exception to the server.
              *
-             * @param JsonRpcMessage $message The JSON-RPC message to send.
+             * @param JsonRpcMessage|Exception $message The JSON-RPC message or exception to send.
              *
              * @return void
              *
+             * @throws InvalidArgumentException If the message is not a JsonRpcMessage.
              * @throws RuntimeException If writing to the pipe fails.
              */
-            public function send($message): void {
+            public function send(JsonRpcMessage|Exception $message): void {
                 if (!$message instanceof JsonRpcMessage) {
                     throw new InvalidArgumentException('Only JsonRpcMessage instances can be sent.');
                 }
@@ -240,13 +250,13 @@ class StdioTransport {
                     ];
 
                     if ($innerMessage instanceof \Mcp\Types\JSONRPCRequest) {
-                        $payload['id'] = $innerMessage->id->toString();
+                        $payload['id'] = (string)$innerMessage->id->value;
                     }
                 } elseif ($innerMessage instanceof \Mcp\Types\JSONRPCResponse ||
                           $innerMessage instanceof \Mcp\Types\JSONRPCError) {
                     $payload = [
                         'jsonrpc' => '2.0',
-                        'id' => $innerMessage->id ? $innerMessage->id->toString() : null
+                        'id' => $innerMessage->id ? (string)$innerMessage->id->value : null
                     ];
 
                     if ($innerMessage instanceof \Mcp\Types\JSONRPCResponse) {

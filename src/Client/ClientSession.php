@@ -81,6 +81,15 @@ class ClientSession extends BaseSession {
     /** @var LoggerInterface */
     private LoggerInterface $logger;
 
+    /** @var MemoryStream|null */
+    private ?MemoryStream $readStream = null;
+
+    /** @var MemoryStream|null */
+    private ?MemoryStream $writeStream = null;
+
+    /** @var float|null */
+    private ?float $readTimeout = null;
+
     /**
      * ClientSession constructor.
      *

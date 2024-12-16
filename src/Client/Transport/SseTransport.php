@@ -34,6 +34,7 @@ use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use RuntimeException;
 use InvalidArgumentException;
+use Exception; // Import the global Exception class
 use Mcp\Types\JSONRPCRequest;
 use Mcp\Types\JSONRPCNotification;
 use Mcp\Types\JSONRPCResponse;
@@ -65,11 +66,11 @@ class SseTransport {
     /**
      * SseTransport constructor.
      *
-     * @param string             $url           The SSE endpoint URL.
-     * @param array              $headers       Optional HTTP headers.
-     * @param float              $timeout       Connection timeout in seconds.
+     * @param string             $url            The SSE endpoint URL.
+     * @param array              $headers        Optional HTTP headers.
+     * @param float              $timeout        Connection timeout in seconds.
      * @param float              $sseReadTimeout SSE read timeout in seconds.
-     * @param LoggerInterface|null $logger     PSR-3 compliant logger.
+     * @param LoggerInterface|null $logger      PSR-3 compliant logger.
      *
      * @throws InvalidArgumentException If the URL is empty.
      */
@@ -140,15 +141,15 @@ class SseTransport {
             public function __construct($pipe, LoggerInterface $logger) {
                 $this->pipe = $pipe;
                 $this->logger = $logger;
-                parent::__construct();
+                // Removed parent::__construct();
             }
 
             /**
              * Receive a JsonRpcMessage from the server.
              *
-             * @return JsonRpcMessage|\Exception|null The received message, an exception, or null if no message is available.
+             * @return JsonRpcMessage|Exception|null The received message, an exception, or null if no message is available.
              */
-            public function receive() {
+            public function receive(): JsonRpcMessage|Exception|null {
                 while (($line = fgets($this->pipe)) !== false) {
                     $line = trim($line);
                     if (empty($line)) {
@@ -203,29 +204,26 @@ class SseTransport {
                     // It's a Request or Notification
                     if (isset($data['id'])) {
                         // It's a Request
-                        $requestId = new RequestId($data['id']);
-                        $jsonRpcRequest = new JSONRPCRequest(
+                        return new JsonRpcMessage(new JSONRPCRequest(
                             jsonrpc: '2.0',
-                            id: $requestId,
+                            id: new RequestId($data['id']),
                             method: $data['method'],
                             params: $data['params'] ?? null
-                        );
-                        return new JsonRpcMessage($jsonRpcRequest);
+                        ));
                     } else {
                         // It's a Notification
-                        $jsonRpcNotification = new JSONRPCNotification(
+                        return new JsonRpcMessage(new JSONRPCNotification(
                             jsonrpc: '2.0',
                             method: $data['method'],
                             params: $data['params'] ?? null
-                        );
-                        return new JsonRpcMessage($jsonRpcNotification);
+                        ));
                     }
                 } elseif (isset($data['result']) || isset($data['error'])) {
                     // It's a Response or Error
                     if (isset($data['error'])) {
                         // It's an Error
                         $errorData = $data['error'];
-                        $jsonRpcError = new JSONRPCError(
+                        return new JsonRpcMessage(new JSONRPCError(
                             jsonrpc: '2.0',
                             id: isset($data['id']) ? new RequestId($data['id']) : null,
                             error: new JsonRpcErrorObject(
@@ -233,16 +231,14 @@ class SseTransport {
                                 message: $errorData['message'],
                                 data: $errorData['data'] ?? null
                             )
-                        );
-                        return new JsonRpcMessage($jsonRpcError);
+                        ));
                     } else {
                         // It's a Response
-                        $jsonRpcResponse = new JSONRPCResponse(
+                        return new JsonRpcMessage(new JSONRPCResponse(
                             jsonrpc: '2.0',
                             id: isset($data['id']) ? new RequestId($data['id']) : null,
                             result: $data['result']
-                        );
-                        return new JsonRpcMessage($jsonRpcResponse);
+                        ));
                     }
                 } else {
                     throw new InvalidArgumentException('Invalid JSON-RPC message structure.');
@@ -257,20 +253,21 @@ class SseTransport {
             public function __construct($curlHandle, LoggerInterface $logger) {
                 $this->curlHandle = $curlHandle;
                 $this->logger = $logger;
-                parent::__construct();
+                // Removed parent::__construct();
             }
 
             /**
-             * Send a JsonRpcMessage to the server via SSE.
+             * Send a JsonRpcMessage or Exception to the server via SSE.
              *
-             * @param JsonRpcMessage $message The JSON-RPC message to send.
+             * @param JsonRpcMessage|Exception $message The JSON-RPC message or exception to send.
              *
              * @return void
              *
+             * @throws InvalidArgumentException If the message is not a JsonRpcMessage.
              * @throws RuntimeException If sending the message fails.
              */
-            public function send($message): void {
-                if (!($message instanceof JsonRpcMessage)) {
+            public function send(JsonRpcMessage|Exception $message): void {
+                if (!$message instanceof JsonRpcMessage) {
                     throw new InvalidArgumentException('Only JsonRpcMessage instances can be sent.');
                 }
 
@@ -285,13 +282,13 @@ class SseTransport {
                     ];
 
                     if ($innerMessage instanceof \Mcp\Types\JSONRPCRequest) {
-                        $payload['id'] = $innerMessage->id->toString();
+                        $payload['id'] = (string)$innerMessage->id->value;
                     }
                 } elseif ($innerMessage instanceof \Mcp\Types\JSONRPCResponse ||
                           $innerMessage instanceof \Mcp\Types\JSONRPCError) {
                     $payload = [
                         'jsonrpc' => '2.0',
-                        'id' => $innerMessage->id ? $innerMessage->id->toString() : null
+                        'id' => $innerMessage->id ? (string)$innerMessage->id->value : null
                     ];
 
                     if ($innerMessage instanceof \Mcp\Types\JSONRPCResponse) {
@@ -311,6 +308,8 @@ class SseTransport {
                 if ($json === false) {
                     throw new RuntimeException('Failed to encode JsonRpcMessage to JSON: ' . json_last_error_msg());
                 }
+
+                $json .= "\n"; // Append newline as message delimiter.
 
                 // Send the message via SSE by posting to the endpoint
                 $ch = curl_init();
