@@ -149,7 +149,7 @@ class SseTransport {
              *
              * @return JsonRpcMessage|Exception|null The received message, an exception, or null if no message is available.
              */
-            public function receive(): JsonRpcMessage|Exception|null {
+            public function receive(): mixed {
                 while (($line = fgets($this->pipe)) !== false) {
                     $line = trim($line);
                     if (empty($line)) {
@@ -266,7 +266,7 @@ class SseTransport {
              * @throws InvalidArgumentException If the message is not a JsonRpcMessage.
              * @throws RuntimeException If sending the message fails.
              */
-            public function send(JsonRpcMessage|Exception $message): void {
+            public function send(mixed $message): void {
                 if (!$message instanceof JsonRpcMessage) {
                     throw new InvalidArgumentException('Only JsonRpcMessage instances can be sent.');
                 }

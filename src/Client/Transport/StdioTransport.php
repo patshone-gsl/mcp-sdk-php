@@ -124,7 +124,7 @@ class StdioTransport {
              *
              * @return JsonRpcMessage|Exception|null The received message, an exception, or null if no message is available.
              */
-            public function receive(): JsonRpcMessage|Exception|null {
+            public function receive(): mixed {
                 $buffer = '';
                 while (($chunk = fgets($this->pipe)) !== false) {
                     $buffer .= $chunk;
@@ -234,7 +234,7 @@ class StdioTransport {
              * @throws InvalidArgumentException If the message is not a JsonRpcMessage.
              * @throws RuntimeException If writing to the pipe fails.
              */
-            public function send(JsonRpcMessage|Exception $message): void {
+            public function send(mixed $message): void {
                 if (!$message instanceof JsonRpcMessage) {
                     throw new InvalidArgumentException('Only JsonRpcMessage instances can be sent.');
                 }

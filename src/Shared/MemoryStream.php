@@ -46,18 +46,18 @@ class MemoryStream {
     /**
      * Sends a message or an exception into the stream.
      *
-     * @param JsonRpcMessage|Exception $item
+     * @param mixed $item
      */
-    public function send(JsonRpcMessage|Exception $item): void {
+    public function send(mixed $item): void {
         $this->queue[] = $item;
     }
 
     /**
      * Receives the oldest message or exception from the stream.
      *
-     * @return JsonRpcMessage|Exception|null Returns the next item or null if empty.
+     * @return mixed Returns the next item or null if empty.
      */
-    public function receive(): JsonRpcMessage|Exception|null {
+    public function receive(): mixed {
         return array_shift($this->queue) ?? null;
     }
 

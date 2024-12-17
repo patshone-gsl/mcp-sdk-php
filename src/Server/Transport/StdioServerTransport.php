@@ -363,7 +363,8 @@ class StdioServerTransport implements Transport {
     private function parseRequestParams(array $params): RequestParams {
         $meta = isset($params['_meta']) ? $this->metaFromArray($params['_meta']) : null;
 
-        $requestParams = new RequestParams($_meta: $meta);
+        // Correctly passing $meta as the first argument
+        $requestParams = new RequestParams($meta);
 
         // Assign other parameters dynamically
         foreach ($params as $key => $value) {
@@ -385,7 +386,8 @@ class StdioServerTransport implements Transport {
     private function parseNotificationParams(array $params): NotificationParams {
         $meta = isset($params['_meta']) ? $this->metaFromArray($params['_meta']) : null;
 
-        $notificationParams = new NotificationParams($_meta: $meta);
+        // Correctly passing $meta as the first argument
+        $notificationParams = new NotificationParams($meta);
 
         // Assign other parameters dynamically
         foreach ($params as $key => $value) {
