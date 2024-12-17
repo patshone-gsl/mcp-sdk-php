@@ -363,7 +363,7 @@ class ServerSession extends BaseSession {
         $this->transport->writeMessage($message);
     }
 
-    protected function waitForResponse(int $requestId, string $resultType): mixed {
+    protected function waitForResponse(int $requestIdValue, string $resultType, ?\Mcp\Types\McpModel &$futureResult): \Mcp\Types\McpModel {
         // The server typically does not wait for responses from the client.
         throw new RuntimeException('Server does not support waiting for responses from the client.');
     }
