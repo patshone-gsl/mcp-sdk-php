@@ -310,10 +310,8 @@ abstract class BaseSession {
     private function validateIncomingRequest(JSONRPCRequest $message): McpModel {
         /** @var McpModel $request */
         $requestClass = $this->receiveRequestType;
-        $request = new $requestClass(
-            method: $message->method,
-            params: $message->params ?? []
-        );
+        // The union class should have a static method: fromMethodAndParams(string $method, ?array $params)
+        $request = $requestClass::fromMethodAndParams($message->method, $message->params ?? []);
         return $request;
     }
 
@@ -324,10 +322,7 @@ abstract class BaseSession {
     private function validateIncomingNotification(JSONRPCNotification $message): McpModel {
         /** @var McpModel $notification */
         $notificationClass = $this->receiveNotificationType;
-        $notification = new $notificationClass(
-            method: $message->method,
-            params: $message->params ?? []
-        );
+        $notification = $notificationClass::fromMethodAndParams($message->method, $message->params ?? []);
         return $notification;
     }
 

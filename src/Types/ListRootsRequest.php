@@ -22,7 +22,7 @@
  * @license    MIT License
  * @link       https://github.com/logiscape/mcp-sdk-php
  *
- * Filename: Types/ToolArguments.php
+ * Filename: Types/ListRootsRequest.php
  */
 
 declare(strict_types=1);
@@ -30,23 +30,21 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * Represents the `arguments` object in CallToolRequest
- * { [key: string]: unknown }
+ * Request sent from the server to the client to list roots.
+ * According to the schema:
+ * interface ListRootsRequest extends Request {
+ *   method: "roots/list";
+ * }
+ *
+ * No params are described, so we assume none are required.
  */
-class ToolArguments implements McpModel {
-    use ExtraFieldsTrait;
-
-    public function __construct(array $args = []) {
-        foreach ($args as $k => $v) {
-            $this->$k = $v;
-        }
+class ListRootsRequest extends Request {
+    public function __construct() {
+        parent::__construct('roots/list');
     }
 
     public function validate(): void {
-        // no required fields
-    }
-
-    public function jsonSerialize(): mixed {
-        return $this->extraFields;
+        parent::validate();
+        // No additional validation needed, no params
     }
 }

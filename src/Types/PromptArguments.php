@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -34,6 +35,16 @@ namespace Mcp\Types;
  */
 class PromptArguments implements McpModel {
     use ExtraFieldsTrait;
+
+    public function __construct(array $args) {
+        foreach ($args as $k => $v) {
+            // Ensure $v is a string, per schema
+            if (!is_string($v)) {
+                throw new \InvalidArgumentException("Prompt argument '$k' must be a string");
+            }
+            $this->$k = $v;
+        }
+    }
 
     public function validate(): void {
         // No required fields, keys are strings, values are strings.

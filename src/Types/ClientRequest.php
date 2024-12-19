@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -44,13 +45,17 @@ namespace Mcp\Types;
  *   | SetLevelRequest
  *   | CompleteRequest
  *
- * This acts as a root model for that union.
+ * This acts as a root model for that union and provides a factory method
+ * to construct the correct request variant based on the method name and params.
  */
 class ClientRequest implements McpModel {
     use ExtraFieldsTrait;
 
     private Request $request;
 
+    /**
+     * Construct a ClientRequest by passing a fully-instantiated Request subclass.
+     */
     public function __construct(Request $request) {
         if (!(
             $request instanceof InitializeRequest ||
@@ -69,6 +74,197 @@ class ClientRequest implements McpModel {
             throw new \InvalidArgumentException('Invalid client request type');
         }
         $this->request = $request;
+    }
+
+    /**
+     * Factory method to create a ClientRequest from a method string and parameters array.
+     *
+     * @param string $method The RPC method name
+     * @param array|null $params The request parameters from the JSON-RPC message
+     * @return self
+     */
+    public static function fromMethodAndParams(string $method, ?array $params): self {
+        $params = $params ?? [];
+
+        return match ($method) {
+            'initialize' => self::createInitializeRequest($params),
+            'ping' => new self(new PingRequest()),
+            'completion/complete' => self::createCompleteRequest($params),
+            'logging/setLevel' => self::createSetLevelRequest($params),
+            'prompts/get' => self::createGetPromptRequest($params),
+            'prompts/list' => self::createListPromptsRequest($params),
+            'resources/list' => self::createListResourcesRequest($params),
+            'resources/read' => self::createReadResourceRequest($params),
+            'resources/subscribe' => self::createSubscribeRequest($params),
+            'resources/unsubscribe' => self::createUnsubscribeRequest($params),
+            'tools/call' => self::createCallToolRequest($params),
+            'tools/list' => self::createListToolsRequest($params),
+            default => throw new \InvalidArgumentException("Unknown client request method: $method")
+        };
+    }
+
+    private static function createInitializeRequest(array $params): self {
+        // Handle capabilities
+        $capParams = $params['capabilities'] ?? [];
+    
+        // ExperimentalCapabilities
+        $experimental = null;
+        if (isset($capParams['experimental'])) {
+            $experimental = new ExperimentalCapabilities();
+            foreach ($capParams['experimental'] as $k => $v) {
+                $experimental->$k = $v; 
+            }
+        }
+    
+        // ClientRootsCapability
+        $roots = null;
+        if (isset($capParams['roots'])) {
+            $rootsData = $capParams['roots'];
+            $listChanged = $rootsData['listChanged'] ?? null;
+            unset($rootsData['listChanged']);
+            $roots = new ClientRootsCapability($listChanged);
+            foreach ($rootsData as $k => $v) {
+                $roots->$k = $v;
+            }
+        }
+    
+        // SamplingCapability
+        $sampling = null;
+        if (isset($capParams['sampling'])) {
+            $samplingData = $capParams['sampling'];
+            $sampling = new SamplingCapability();
+            foreach ($samplingData as $k => $v) {
+                $sampling->$k = $v;
+            }
+        }
+    
+        $capabilities = new ClientCapabilities(
+            roots: $roots,
+            sampling: $sampling,
+            experimental: $experimental
+        );
+    
+        // Implementation
+        if (!isset($params['clientInfo']['name'], $params['clientInfo']['version'])) {
+            throw new \InvalidArgumentException('clientInfo must have name and version.');
+        }
+        $clientInfo = new Implementation(
+            name: $params['clientInfo']['name'],
+            version: $params['clientInfo']['version']
+        );
+    
+        if (empty($params['protocolVersion'])) {
+            throw new \InvalidArgumentException('protocolVersion is required for initialize.');
+        }
+    
+        $initializeParams = new InitializeRequestParams(
+            protocolVersion: $params['protocolVersion'],
+            capabilities: $capabilities,
+            clientInfo: $clientInfo,
+            $_meta: $params['_meta'] ?? null
+        );
+    
+        return new self(new InitializeRequest($initializeParams));
+    }
+
+    private static function createCompleteRequest(array $params): self {
+        $argumentData = $params['argument'] ?? [];
+        if (empty($argumentData['name']) || !isset($argumentData['value'])) {
+            throw new \InvalidArgumentException('CompleteRequest argument must have "name" and "value"');
+        }
+    
+        $argument = new CompletionArgument($argumentData['name'], $argumentData['value']);
+    
+        $refData = $params['ref'] ?? [];
+        if (!isset($refData['type'])) {
+            throw new \InvalidArgumentException('CompleteRequest ref must have a "type"');
+        }
+    
+        $ref = match ($refData['type']) {
+            'ref/prompt' => new PromptReference($refData['name'] ?? ''),
+            'ref/resource' => new ResourceReference($refData['uri'] ?? ''),
+            default => throw new \InvalidArgumentException("Unknown ref type: {$refData['type']}")
+        };
+    
+        return new self(new CompleteRequest(argument: $argument, ref: $ref));
+    }
+
+    private static function createSetLevelRequest(array $params): self {
+        if (!isset($params['level'])) {
+            throw new \InvalidArgumentException('SetLevelRequest "params" must include "level"');
+        }
+        $level = LoggingLevel::from($params['level']);
+        return new self(new SetLevelRequest($level));
+    }
+
+    private static function createGetPromptRequest(array $params): self {
+        if (empty($params['name'])) {
+            throw new \InvalidArgumentException('GetPromptRequest requires "name"');
+        }
+
+        $arguments = null;
+        if (isset($params['arguments'])) {
+            $arguments = new PromptArguments($params['arguments']);
+        }
+
+        $getParams = new GetPromptRequestParams(
+            name: $params['name'],
+            arguments: $arguments
+        );
+
+        return new self(new GetPromptRequest($getParams));
+    }
+
+    private static function createListPromptsRequest(array $params): self {
+        $cursor = $params['cursor'] ?? null;
+        return new self(new ListPromptsRequest($cursor));
+    }
+
+    private static function createListResourcesRequest(array $params): self {
+        $cursor = $params['cursor'] ?? null;
+        return new self(new ListResourcesRequest($cursor));
+    }
+
+    private static function createReadResourceRequest(array $params): self {
+        if (empty($params['uri'])) {
+            throw new \InvalidArgumentException('ReadResourceRequest requires "uri"');
+        }
+        return new self(new ReadResourceRequest(uri: $params['uri']));
+    }
+
+    private static function createSubscribeRequest(array $params): self {
+        if (empty($params['uri'])) {
+            throw new \InvalidArgumentException('SubscribeRequest requires "uri"');
+        }
+        return new self(new SubscribeRequest(uri: $params['uri']));
+    }
+
+    private static function createUnsubscribeRequest(array $params): self {
+        if (empty($params['uri'])) {
+            throw new \InvalidArgumentException('UnsubscribeRequest requires "uri"');
+        }
+        return new self(new UnsubscribeRequest(uri: $params['uri']));
+    }
+
+    private static function createCallToolRequest(array $params): self {
+        if (empty($params['name'])) {
+            throw new \InvalidArgumentException('CallToolRequest requires "name"');
+        }
+    
+        $arguments = null;
+        if (isset($params['arguments'])) {
+            $arguments = new ToolArguments();
+            foreach ($params['arguments'] as $k => $v) {
+                $arguments->$k = $v;
+            }
+        }
+    
+        return new self(new CallToolRequest(name: $params['name'], arguments: $arguments));
+    }
+
+    private static function createListToolsRequest(array $params): self {
+        $cursor = $params['cursor'] ?? null;
+        return new self(new ListToolsRequest($cursor));
     }
 
     public function validate(): void {

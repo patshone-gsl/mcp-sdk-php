@@ -96,7 +96,6 @@ class ServerSession extends BaseSession {
             throw new RuntimeException('Session already initialized');
         }
 
-        $this->isInitialized = true;
         $this->transport->start();
         $this->initialize();
     }
@@ -160,20 +159,31 @@ class ServerSession extends BaseSession {
      * @param ClientRequest $request The incoming client request.
      * @param callable $respond The responder callable.
      */
-    public function handleRequest(ClientRequest $request, callable $respond): void {
-        if ($request->method === 'initialize') {
+    public function handleRequest(RequestResponder $responder): void {
+        $request = $responder->getRequest(); // a ClientRequest
+        $actualRequest = $request->getRequest(); // the underlying typed Request
+        $method = $actualRequest->method;
+        $params = $actualRequest->params ?? [];
+
+        if ($method === 'initialize') {
+            $respond = fn($result) => $responder->sendResponse($result);
             $this->handleInitialize($request, $respond);
             return;
         }
 
         if ($this->initializationState !== InitializationState::Initialized) {
-            throw new RuntimeException('Received request before initialization was complete');
+            throw new \RuntimeException('Received request before initialization was complete');
         }
 
-        // Handle other requests here
-        // Example: $this->handleOtherRequest($request, $respond);
-        // For demonstration, we'll just log the request
-        $this->logger->info('Received request: ' . $request->method);
+        // Now we integrate the method-specific handlers:
+        if (isset($this->requestHandlers[$method])) {
+            $handler = $this->requestHandlers[$method];
+            $result = $handler($params); // call the user-defined handler
+            $responder->sendResponse($result);
+        } else {
+            $this->logger->info("No registered handler for method: $method");
+            // Possibly send an error response or ignore
+        }
     }
 
     /**
@@ -207,7 +217,7 @@ class ServerSession extends BaseSession {
     private function handleInitialize(ClientRequest $request, callable $respond): void {
         $this->initializationState = InitializationState::Initializing;
         /** @var InitializeRequestParams $params */
-        $params = $request->params;
+        $params = $request->getRequest()->params;
         $this->clientParams = $params;
 
         $result = new InitializeResult(

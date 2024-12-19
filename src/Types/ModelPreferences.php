@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -40,6 +41,10 @@ class ModelPreferences implements McpModel {
         public ?float $intelligencePriority = null,
         public array $hints = [],
     ) {}
+
+    public function addHint(ModelHint $hint): void {
+        $this->hints[] = $hint;
+    }
 
     public function validate(): void {
         foreach ([$this->costPriority, $this->speedPriority, $this->intelligencePriority] as $priority) {
