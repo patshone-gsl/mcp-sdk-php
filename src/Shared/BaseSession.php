@@ -308,10 +308,15 @@ abstract class BaseSession {
      * @throws InvalidArgumentException If instantiation fails.
      */
     private function validateIncomingRequest(JSONRPCRequest $message): McpModel {
-        /** @var McpModel $request */
         $requestClass = $this->receiveRequestType;
-        // The union class should have a static method: fromMethodAndParams(string $method, ?array $params)
-        $request = $requestClass::fromMethodAndParams($message->method, $message->params ?? []);
+        
+        $params = $message->params ?? [];
+        if (is_object($params)) {
+            // Convert object to array
+            $params = $params->jsonSerialize(); 
+        }
+        
+        $request = $requestClass::fromMethodAndParams($message->method, $params);
         return $request;
     }
 
@@ -320,9 +325,15 @@ abstract class BaseSession {
      * @throws InvalidArgumentException If instantiation fails.
      */
     private function validateIncomingNotification(JSONRPCNotification $message): McpModel {
-        /** @var McpModel $notification */
         $notificationClass = $this->receiveNotificationType;
-        $notification = $notificationClass::fromMethodAndParams($message->method, $message->params ?? []);
+        
+        $params = $message->params ?? [];
+        if (is_object($params)) {
+            // Convert object to array
+            $params = $params->jsonSerialize();
+        }
+    
+        $notification = $notificationClass::fromMethodAndParams($message->method, $params);
         return $notification;
     }
 

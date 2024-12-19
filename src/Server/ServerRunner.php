@@ -81,24 +81,6 @@ class ServerRunner {
 
             $this->logger->info('Server started');
 
-            // Main message loop - continuously read messages and pass to server
-            while (true) {
-                try {
-                    $message = $transport->readMessage();
-                    if ($message === null) {
-                        // No message available; sleep briefly to avoid busy-waiting
-                        usleep(10000); // 10ms
-                        continue;
-                    }
-
-                    $this->logger->info('Received message from client: ' . json_encode($message));
-                    $this->server->handleMessage($message);
-
-                } catch (\Exception $e) {
-                    $this->logger->error('Error processing message: ' . $e->getMessage());
-                    // Continue reading next messages
-                }
-            }
         } catch (\Exception $e) {
             $this->logger->error('Server error: ' . $e->getMessage());
             throw $e;
