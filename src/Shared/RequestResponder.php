@@ -74,6 +74,14 @@ class RequestResponder {
         $this->session->sendResponse($this->requestId, $response);
     }
 
+    public function sendResponse(mixed $response): void {
+        $this->respond($response);
+    }
+
+    public function getRequest(): McpModel {
+        return $this->request;
+    }
+
     /**
      * Returns the Meta object associated with the request, if any.
      */

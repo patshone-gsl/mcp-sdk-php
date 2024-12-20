@@ -254,7 +254,7 @@ abstract class BaseSession {
 
             $responder = new RequestResponder(
                 requestId: $innerMessage->id,
-                params: $innerMessage->params['_meta'] ?? [],
+                params: $innerMessage->params->_meta ?? [],
                 request: $request,
                 session: $this
             );

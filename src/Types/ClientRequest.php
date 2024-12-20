@@ -161,7 +161,7 @@ class ClientRequest implements McpModel {
             protocolVersion: $params['protocolVersion'],
             capabilities: $capabilities,
             clientInfo: $clientInfo,
-            $_meta: $params['_meta'] ?? null
+            _meta: $params['_meta'] ?? null
         );
     
         return new self(new InitializeRequest($initializeParams));

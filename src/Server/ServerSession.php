@@ -30,6 +30,7 @@ declare(strict_types=1);
 namespace Mcp\Server;
 
 use Mcp\Shared\BaseSession;
+use Mcp\Shared\RequestResponder;
 use Mcp\Shared\Version;
 use Mcp\Types\JsonRpcMessage;
 use Mcp\Types\LoggingLevel;
