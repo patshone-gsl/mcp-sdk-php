@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -37,6 +38,41 @@ class InitializeResult extends Result {
         ?Meta $_meta = null,
     ) {
         parent::__construct($_meta);
+    }
+
+    public static function fromResponseData(array $data): self {
+        // Extract _meta
+        $meta = null;
+        if (isset($data['_meta'])) {
+            $metaData = $data['_meta'];
+            unset($data['_meta']);
+            $meta = new Meta();
+            foreach ($metaData as $k => $v) {
+                $meta->$k = $v;
+            }
+        }
+
+        // Extract known fields
+        $protocolVersion = $data['protocolVersion'] ?? '';
+        $capabilitiesData = $data['capabilities'] ?? [];
+        $serverInfoData = $data['serverInfo'] ?? [];
+        $instructions = $data['instructions'] ?? null;
+
+        unset($data['protocolVersion'], $data['capabilities'], $data['serverInfo'], $data['instructions']);
+
+        // Construct nested objects
+        $capabilities = ServerCapabilities::fromArray($capabilitiesData);
+        $serverInfo = Implementation::fromArray($serverInfoData);
+
+        $obj = new self($capabilities, $serverInfo, $protocolVersion, $instructions, $meta);
+
+        // Extra fields
+        foreach ($data as $k => $v) {
+            $obj->$k = $v;
+        }
+
+        $obj->validate();
+        return $obj;
     }
 
     public function validate(): void {

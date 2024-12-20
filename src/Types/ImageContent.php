@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -38,6 +39,25 @@ class ImageContent extends Content {
         ?Annotations $annotations = null,
     ) {
         parent::__construct('image', $annotations);
+    }
+
+    public static function fromArray(array $data): self {
+        $imgData = $data['data'] ?? '';
+        $mimeType = $data['mimeType'] ?? '';
+        unset($data['data'], $data['mimeType']);
+
+        $annotations = null;
+        if (isset($data['annotations']) && is_array($data['annotations'])) {
+            $annotations = Annotations::fromArray($data['annotations']);
+            unset($data['annotations']);
+        }
+
+        $obj = new self($imgData, $mimeType, $annotations);
+
+        // Same note about extra fields as TextContent.
+
+        $obj->validate();
+        return $obj;
     }
 
     public function validate(): void {

@@ -22,27 +22,41 @@
  * @license    MIT License
  * @link       https://github.com/logiscape/mcp-sdk-php
  *
- * Filename: Types/GetPromptResult.php
+ * Filename: Types/ListRootsResult.php
  */
-
+ 
 declare(strict_types=1);
 
 namespace Mcp\Types;
 
-class GetPromptResult extends Result {
+class ListRootsResult extends Result {
     /**
-     * @param PromptMessage[] $messages
+     * @param Root[] $roots
      */
     public function __construct(
-        public readonly array $messages,
-        public ?string $description = null,
+        public readonly array $roots,
         ?Meta $_meta = null,
     ) {
         parent::__construct($_meta);
     }
 
+    public function validate(): void {
+        parent::validate();
+        foreach ($this->roots as $root) {
+            if (!$root instanceof Root) {
+                throw new \InvalidArgumentException('Roots must be instances of Root');
+            }
+            $root->validate();
+        }
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = parent::jsonSerialize();
+        $data['roots'] = $this->roots;
+        return $data;
+    }
+
     public static function fromResponseData(array $data): self {
-        // _meta
         $meta = null;
         if (isset($data['_meta'])) {
             $metaData = $data['_meta'];
@@ -53,19 +67,18 @@ class GetPromptResult extends Result {
             }
         }
 
-        $messagesData = $data['messages'] ?? [];
-        $description = $data['description'] ?? null;
-        unset($data['messages'], $data['description']);
+        $rootsData = $data['roots'] ?? [];
+        unset($data['roots']);
 
-        $messages = [];
-        foreach ($messagesData as $m) {
-            if (!is_array($m)) {
-                throw new \InvalidArgumentException('Invalid message data in GetPromptResult');
+        $roots = [];
+        foreach ($rootsData as $r) {
+            if (!is_array($r)) {
+                throw new \InvalidArgumentException('Invalid root data in ListRootsResult');
             }
-            $messages[] = PromptMessage::fromArray($m);
+            $roots[] = Root::fromArray($r);
         }
 
-        $obj = new self($messages, $description, $meta);
+        $obj = new self($roots, $meta);
 
         // Extra fields
         foreach ($data as $k => $v) {
@@ -74,24 +87,5 @@ class GetPromptResult extends Result {
 
         $obj->validate();
         return $obj;
-    }
-
-    public function validate(): void {
-        parent::validate();
-        foreach ($this->messages as $message) {
-            if (!$message instanceof PromptMessage) {
-                throw new \InvalidArgumentException('Messages must be instances of PromptMessage');
-            }
-            $message->validate();
-        }
-    }
-
-    public function jsonSerialize(): mixed {
-        $data = parent::jsonSerialize();
-        $data['messages'] = $this->messages;
-        if ($this->description !== null) {
-            $data['description'] = $this->description;
-        }
-        return $data;
     }
 }

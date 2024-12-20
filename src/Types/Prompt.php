@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -39,6 +40,32 @@ class Prompt implements McpModel {
         public ?string $description = null,
         public array $arguments = [],
     ) {}
+
+    public static function fromArray(array $data): self {
+        $name = $data['name'] ?? '';
+        $description = $data['description'] ?? null;
+        $argumentsData = $data['arguments'] ?? [];
+        unset($data['name'], $data['description'], $data['arguments']);
+
+        $arguments = [];
+        if (is_array($argumentsData)) {
+            foreach ($argumentsData as $arg) {
+                if (!is_array($arg)) {
+                    throw new \InvalidArgumentException('Invalid prompt argument data');
+                }
+                $arguments[] = PromptArgument::fromArray($arg);
+            }
+        }
+
+        $obj = new self($name, $description, $arguments);
+
+        foreach ($data as $k => $v) {
+            $obj->$k = $v;
+        }
+
+        $obj->validate();
+        return $obj;
+    }
 
     public function validate(): void {
         if (empty($this->name)) {

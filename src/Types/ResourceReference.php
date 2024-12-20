@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -38,6 +39,21 @@ class ResourceReference implements McpModel {
         public readonly string $uri,
         public readonly string $type = 'ref/resource',
     ) {}
+
+    public static function fromArray(array $data): self {
+        $uri = $data['uri'] ?? '';
+        $type = $data['type'] ?? 'ref/resource';
+        unset($data['uri'], $data['type']);
+
+        $obj = new self($uri, $type);
+
+        foreach ($data as $k => $v) {
+            $obj->$k = $v; // ResourceReference uses ExtraFieldsTrait
+        }
+
+        $obj->validate();
+        return $obj;
+    }
 
     public function validate(): void {
         if (empty($this->uri)) {

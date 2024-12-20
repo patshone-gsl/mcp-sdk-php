@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -38,6 +39,31 @@ class ListPromptsResult extends PaginatedResult {
         ?Meta $_meta = null,
     ) {
         parent::__construct($nextCursor, $_meta);
+    }
+
+    public static function fromResponseData(array $data): self {
+        [$meta, $nextCursor, $data] = self::extractPaginatedBase($data);
+
+        $promptsData = $data['prompts'] ?? [];
+        unset($data['prompts']);
+
+        $prompts = [];
+        foreach ($promptsData as $p) {
+            if (!is_array($p)) {
+                throw new \InvalidArgumentException('Invalid prompt data in ListPromptsResult');
+            }
+            $prompts[] = Prompt::fromArray($p);
+        }
+
+        $obj = new self($prompts, $nextCursor, $meta);
+
+        // Extra fields
+        foreach ($data as $k => $v) {
+            $obj->$k = $v;
+        }
+
+        $obj->validate();
+        return $obj;
     }
 
     public function validate(): void {

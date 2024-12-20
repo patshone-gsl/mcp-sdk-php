@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -38,6 +39,31 @@ class ListToolsResult extends PaginatedResult {
         ?Meta $_meta = null,
     ) {
         parent::__construct($nextCursor, $_meta);
+    }
+
+    public static function fromResponseData(array $data): self {
+        [$meta, $nextCursor, $data] = self::extractPaginatedBase($data);
+
+        $toolsData = $data['tools'] ?? [];
+        unset($data['tools']);
+
+        $tools = [];
+        foreach ($toolsData as $t) {
+            if (!is_array($t)) {
+                throw new \InvalidArgumentException('Invalid tool data in ListToolsResult');
+            }
+            $tools[] = Tool::fromArray($t);
+        }
+
+        $obj = new self($tools, $nextCursor, $meta);
+
+        // Extra fields
+        foreach ($data as $k => $v) {
+            $obj->$k = $v;
+        }
+
+        $obj->validate();
+        return $obj;
     }
 
     public function validate(): void {

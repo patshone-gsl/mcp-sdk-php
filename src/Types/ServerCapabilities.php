@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -49,6 +50,61 @@ class ServerCapabilities extends Capabilities {
         ?ExperimentalCapabilities $experimental = null,
     ) {
         parent::__construct($experimental);
+    }
+
+    public static function fromArray(array $data): self {
+        // Handle experimental from parent class
+        $experimentalData = $data['experimental'] ?? null;
+        unset($data['experimental']);
+        $experimental = null;
+        if ($experimentalData !== null && is_array($experimentalData)) {
+            $experimental = ExperimentalCapabilities::fromArray($experimentalData);
+        }
+
+        $loggingData = $data['logging'] ?? null;
+        unset($data['logging']);
+        $logging = null;
+        if ($loggingData !== null && is_array($loggingData)) {
+            $logging = ServerLoggingCapability::fromArray($loggingData);
+        }
+
+        $promptsData = $data['prompts'] ?? null;
+        unset($data['prompts']);
+        $prompts = null;
+        if ($promptsData !== null && is_array($promptsData)) {
+            $prompts = ServerPromptsCapability::fromArray($promptsData);
+        }
+
+        $resourcesData = $data['resources'] ?? null;
+        unset($data['resources']);
+        $resources = null;
+        if ($resourcesData !== null && is_array($resourcesData)) {
+            $resources = ServerResourcesCapability::fromArray($resourcesData);
+        }
+
+        $toolsData = $data['tools'] ?? null;
+        unset($data['tools']);
+        $tools = null;
+        if ($toolsData !== null && is_array($toolsData)) {
+            $tools = ServerToolsCapability::fromArray($toolsData);
+        }
+
+        // Construct ServerCapabilities object
+        $obj = new self(
+            logging: $logging,
+            prompts: $prompts,
+            resources: $resources,
+            tools: $tools,
+            experimental: $experimental
+        );
+
+        // Extra fields
+        foreach ($data as $k => $v) {
+            $obj->$k = $v;
+        }
+
+        $obj->validate();
+        return $obj;
     }
 
     public function validate(): void {

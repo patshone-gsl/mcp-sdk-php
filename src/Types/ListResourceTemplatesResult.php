@@ -22,40 +22,56 @@
  * @license    MIT License
  * @link       https://github.com/logiscape/mcp-sdk-php
  *
- * Filename: Types/ListResourcesResult.php
+ * Filename: Types/ListResourceTemplatesResult.php
  */
-
+ 
 declare(strict_types=1);
 
 namespace Mcp\Types;
 
-class ListResourcesResult extends PaginatedResult {
+class ListResourceTemplatesResult extends PaginatedResult {
     /**
-     * @param Resource[] $resources
+     * @param ResourceTemplate[] $resourceTemplates
      */
     public function __construct(
-        public readonly array $resources,
+        public readonly array $resourceTemplates,
         ?string $nextCursor = null,
         ?Meta $_meta = null,
     ) {
         parent::__construct($nextCursor, $_meta);
     }
 
+    public function validate(): void {
+        parent::validate();
+        foreach ($this->resourceTemplates as $template) {
+            if (!$template instanceof ResourceTemplate) {
+                throw new \InvalidArgumentException('Resource templates must be instances of ResourceTemplate');
+            }
+            $template->validate();
+        }
+    }
+
+    public function jsonSerialize(): mixed {
+        $data = parent::jsonSerialize();
+        $data['resourceTemplates'] = $this->resourceTemplates;
+        return $data;
+    }
+
     public static function fromResponseData(array $data): self {
         [$meta, $nextCursor, $data] = self::extractPaginatedBase($data);
 
-        $resourcesData = $data['resources'] ?? [];
-        unset($data['resources']);
+        $templatesData = $data['resourceTemplates'] ?? [];
+        unset($data['resourceTemplates']);
 
-        $resources = [];
-        foreach ($resourcesData as $r) {
-            if (!is_array($r)) {
-                throw new \InvalidArgumentException('Invalid resource data in ListResourcesResult');
+        $resourceTemplates = [];
+        foreach ($templatesData as $t) {
+            if (!is_array($t)) {
+                throw new \InvalidArgumentException('Invalid resource template data in ListResourceTemplatesResult');
             }
-            $resources[] = Resource::fromArray($r);
+            $resourceTemplates[] = ResourceTemplate::fromArray($t);
         }
 
-        $obj = new self($resources, $nextCursor, $meta);
+        $obj = new self($resourceTemplates, $nextCursor, $meta);
 
         // Extra fields
         foreach ($data as $k => $v) {
@@ -64,21 +80,5 @@ class ListResourcesResult extends PaginatedResult {
 
         $obj->validate();
         return $obj;
-    }
-
-    public function validate(): void {
-        parent::validate();
-        foreach ($this->resources as $resource) {
-            if (!$resource instanceof Resource) {
-                throw new \InvalidArgumentException('Resources must be instances of Resource');
-            }
-            $resource->validate();
-        }
-    }
-
-    public function jsonSerialize(): mixed {
-        $data = parent::jsonSerialize();
-        $data['resources'] = $this->resources;
-        return $data;
     }
 }

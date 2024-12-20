@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -34,6 +35,20 @@ class ModelHint implements McpModel {
     public function __construct(
         public ?string $name = null,
     ) {}
+
+    public static function fromArray(array $data): self {
+        $name = $data['name'] ?? null;
+        unset($data['name']);
+
+        $obj = new self($name);
+
+        foreach ($data as $k => $v) {
+            $obj->$k = $v; // ModelHint uses ExtraFieldsTrait
+        }
+
+        $obj->validate();
+        return $obj;
+    }
 
     public function validate(): void {
         // No required fields

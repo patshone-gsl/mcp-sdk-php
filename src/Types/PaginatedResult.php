@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -47,5 +48,30 @@ class PaginatedResult extends Result {
             $data['nextCursor'] = $this->nextCursor;
         }
         return $data;
+    }
+
+    /**
+     * This helper method extracts `_meta` and `nextCursor` from the given $data array
+     * and returns them along with the leftover $data. Subclasses can call this method
+     * to build their `fromResponseData()` methods without duplicating code.
+     *
+     * @param array $data The raw result data from the response.
+     * @return array{0: Meta|null, 1: string|null, 2: array} [$_meta, $nextCursor, $dataWithoutMetaAndCursor]
+     */
+    protected static function extractPaginatedBase(array $data): array {
+        $meta = null;
+        if (isset($data['_meta'])) {
+            $metaData = $data['_meta'];
+            unset($data['_meta']);
+            $meta = new Meta();
+            foreach ($metaData as $k => $v) {
+                $meta->$k = $v;
+            }
+        }
+
+        $nextCursor = $data['nextCursor'] ?? null;
+        unset($data['nextCursor']);
+
+        return [$meta, $nextCursor, $data];
     }
 }

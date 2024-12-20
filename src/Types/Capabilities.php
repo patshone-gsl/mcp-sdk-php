@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -42,6 +43,26 @@ abstract class Capabilities implements McpModel {
     public function __construct(
         public ?ExperimentalCapabilities $experimental = null,
     ) {}
+
+    public static function fromArray(array $data): self {
+        $experimentalData = $data['experimental'] ?? null;
+        unset($data['experimental']);
+
+        $experimental = null;
+        if ($experimentalData !== null && is_array($experimentalData)) {
+            $experimental = ExperimentalCapabilities::fromArray($experimentalData);
+        }
+
+        $obj = new self($experimental);
+
+        // Extra fields
+        foreach ($data as $k => $v) {
+            $obj->$k = $v;
+        }
+
+        $obj->validate();
+        return $obj;
+    }
 
     public function validate(): void {
         if ($this->experimental !== null) {

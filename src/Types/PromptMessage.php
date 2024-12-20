@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -42,6 +43,39 @@ class PromptMessage implements McpModel {
         public readonly Role $role,
         public readonly TextContent|ImageContent|EmbeddedResource $content,
     ) {}
+
+    public static function fromArray(array $data): self {
+        $roleStr = $data['role'] ?? '';
+        $role = Role::tryFrom($roleStr);
+        if ($role === null) {
+            throw new \InvalidArgumentException("Invalid role: $roleStr");
+        }
+        unset($data['role']);
+
+        $contentData = $data['content'] ?? [];
+        unset($data['content']);
+
+        if (!is_array($contentData) || !isset($contentData['type'])) {
+            throw new \InvalidArgumentException("Invalid or missing content type in PromptMessage");
+        }
+
+        $contentType = $contentData['type'];
+        $content = match($contentType) {
+            'text' => TextContent::fromArray($contentData),
+            'image' => ImageContent::fromArray($contentData),
+            'resource' => EmbeddedResource::fromArray($contentData),
+            default => throw new \InvalidArgumentException("Unknown content type: $contentType")
+        };
+
+        $obj = new self($role, $content);
+
+        foreach ($data as $k => $v) {
+            $obj->$k = $v;
+        }
+
+        $obj->validate();
+        return $obj;
+    }
 
     public function validate(): void {
         $this->content->validate();

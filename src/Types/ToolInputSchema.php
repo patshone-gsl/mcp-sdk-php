@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -46,6 +47,51 @@ class ToolInputSchema implements McpModel {
         public readonly ToolInputProperties $properties = new ToolInputProperties(),
         public ?array $required = null,
     ) {}
+
+    public static function fromArray(array $data): self {
+        $type = $data['type'] ?? '';
+        if ($type !== 'object') {
+            throw new \InvalidArgumentException('ToolInputSchema must have type "object"');
+        }
+        unset($data['type']);
+
+        // Parse properties
+        $propertiesData = $data['properties'] ?? [];
+        unset($data['properties']);
+
+        if (!is_array($propertiesData)) {
+            throw new \InvalidArgumentException('Invalid properties field for ToolInputSchema; expected an object');
+        }
+
+        $properties = ToolInputProperties::fromArray($propertiesData);
+
+        // Parse required
+        $required = $data['required'] ?? null;
+        unset($data['required']);
+
+        if ($required !== null) {
+            if (!is_array($required)) {
+                throw new \InvalidArgumentException('ToolInputSchema "required" must be an array of strings');
+            }
+
+            // Ensure all required elements are non-empty strings
+            foreach ($required as $r) {
+                if (!is_string($r) || $r === '') {
+                    throw new \InvalidArgumentException('Required field names must be non-empty strings');
+                }
+            }
+        }
+
+        $obj = new self($properties, $required);
+
+        // Any leftover fields go into extraFields
+        foreach ($data as $k => $v) {
+            $obj->$k = $v;
+        }
+
+        $obj->validate();
+        return $obj;
+    }
 
     public function validate(): void {
         // type is always "object", we enforce this in the Tool class itself.

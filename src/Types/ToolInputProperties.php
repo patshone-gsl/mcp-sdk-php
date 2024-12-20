@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -36,6 +37,17 @@ namespace Mcp\Types;
  */
 class ToolInputProperties implements McpModel {
     use ExtraFieldsTrait;
+
+    public static function fromArray(array $data): self {
+        $obj = new self();
+        // All fields are arbitrary, so store them in extraFields
+        foreach ($data as $k => $v) {
+            $obj->$k = $v;
+        }
+
+        $obj->validate();
+        return $obj;
+    }
 
     public function validate(): void {
         // Arbitrary fields allowed. Not validating contents.

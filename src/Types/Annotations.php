@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -41,6 +42,40 @@ class Annotations implements McpModel {
         public ?array $audience = null,
         public ?float $priority = null,
     ) {}
+
+    public static function fromArray(array $data): self {
+        // Extract known fields
+        $audienceData = $data['audience'] ?? null;
+        $priority = $data['priority'] ?? null;
+
+        unset($data['audience'], $data['priority']);
+
+        // Convert audienceData (if any) to an array of Role enums
+        $audience = null;
+        if (is_array($audienceData)) {
+            $audience = [];
+            foreach ($audienceData as $roleStr) {
+                $role = Role::tryFrom($roleStr);
+                if ($role === null) {
+                    throw new \InvalidArgumentException("Invalid role in annotations: $roleStr");
+                }
+                $audience[] = $role;
+            }
+        }
+
+        $obj = new self(
+            audience: $audience,
+            priority: $priority !== null ? (float)$priority : null
+        );
+
+        // Any leftover fields go into extraFields
+        foreach ($data as $k => $v) {
+            $obj->$k = $v;
+        }
+
+        $obj->validate();
+        return $obj;
+    }
 
     public function validate(): void {
         // audience?: Role[]

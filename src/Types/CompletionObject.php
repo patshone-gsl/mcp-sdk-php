@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -48,6 +49,27 @@ class CompletionObject implements McpModel {
         public ?int $total = null,
         public ?bool $hasMore = null,
     ) {}
+
+    public static function fromArray(array $data): self {
+        $values = $data['values'] ?? [];
+        $total = $data['total'] ?? null;
+        $hasMore = $data['hasMore'] ?? null;
+
+        unset($data['values'], $data['total'], $data['hasMore']);
+
+        $obj = new self(
+            values: $values,
+            total: $total !== null ? (int)$total : null,
+            hasMore: $hasMore !== null ? (bool)$hasMore : null
+        );
+
+        foreach ($data as $k => $v) {
+            $obj->$k = $v;
+        }
+
+        $obj->validate();
+        return $obj;
+    }
 
     public function validate(): void {
         if (count($this->values) > 100) {

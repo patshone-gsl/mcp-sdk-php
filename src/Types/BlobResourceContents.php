@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -38,6 +39,21 @@ class BlobResourceContents extends ResourceContents {
         ?string $mimeType = null,
     ) {
         parent::__construct($uri, $mimeType);
+    }
+
+    public static function fromArray(array $data): self {
+        $uri = $data['uri'] ?? '';
+        $mimeType = $data['mimeType'] ?? null;
+        $blob = $data['blob'] ?? '';
+
+        unset($data['uri'], $data['mimeType'], $data['blob']);
+
+        $obj = new self($blob, $uri, $mimeType);
+
+        // See notes in TextResourceContents regarding extra fields.
+
+        $obj->validate();
+        return $obj;
     }
 
     public function validate(): void {

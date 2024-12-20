@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -38,6 +39,21 @@ class PromptReference implements McpModel {
         public readonly string $name,
         public readonly string $type = 'ref/prompt',
     ) {}
+
+    public static function fromArray(array $data): self {
+        $name = $data['name'] ?? '';
+        $type = $data['type'] ?? 'ref/prompt';
+        unset($data['name'], $data['type']);
+
+        $obj = new self($name, $type);
+
+        foreach ($data as $k => $v) {
+            $obj->$k = $v; // PromptReference uses ExtraFieldsTrait
+        }
+
+        $obj->validate();
+        return $obj;
+    }
 
     public function validate(): void {
         if (empty($this->name)) {

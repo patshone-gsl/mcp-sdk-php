@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -40,6 +41,30 @@ class Resource implements McpModel {
         ?Annotations $annotations = null
     ) {
         $this->annotations = $annotations;
+    }
+
+    public static function fromArray(array $data): self {
+        $name = $data['name'] ?? '';
+        $uri = $data['uri'] ?? '';
+        $description = $data['description'] ?? null;
+        $mimeType = $data['mimeType'] ?? null;
+
+        unset($data['name'], $data['uri'], $data['description'], $data['mimeType']);
+
+        $annotations = null;
+        if (isset($data['annotations']) && is_array($data['annotations'])) {
+            $annotations = Annotations::fromArray($data['annotations']);
+            unset($data['annotations']);
+        }
+
+        $obj = new self($name, $uri, $description, $mimeType, $annotations);
+
+        foreach ($data as $k => $v) {
+            $obj->$k = $v;
+        }
+
+        $obj->validate();
+        return $obj;
     }
 
     public function validate(): void {

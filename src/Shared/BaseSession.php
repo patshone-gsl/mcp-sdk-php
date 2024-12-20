@@ -127,8 +127,7 @@ abstract class BaseSession {
                 // It's a success response
                 // Validate the result using $resultType
                 /** @var McpModel $resultInstance */
-                $resultInstance = new $resultType($innerMessage->result);
-                $resultInstance->validate();
+                $resultInstance = $resultType::fromResponseData($innerMessage->result);
                 $futureResult = $resultInstance;
             } else {
                 // Invalid response

@@ -46,6 +46,38 @@ class ModelPreferences implements McpModel {
         $this->hints[] = $hint;
     }
 
+    public static function fromArray(array $data): self {
+        $costPriority = $data['costPriority'] ?? null;
+        $speedPriority = $data['speedPriority'] ?? null;
+        $intelligencePriority = $data['intelligencePriority'] ?? null;
+        $hintsData = $data['hints'] ?? [];
+        unset($data['costPriority'], $data['speedPriority'], $data['intelligencePriority'], $data['hints']);
+
+        $hints = [];
+        if (is_array($hintsData)) {
+            foreach ($hintsData as $hint) {
+                if (!is_array($hint)) {
+                    throw new \InvalidArgumentException('Invalid hint data');
+                }
+                $hints[] = ModelHint::fromArray($hint);
+            }
+        }
+
+        $obj = new self(
+            costPriority: $costPriority !== null ? (float)$costPriority : null,
+            speedPriority: $speedPriority !== null ? (float)$speedPriority : null,
+            intelligencePriority: $intelligencePriority !== null ? (float)$intelligencePriority : null,
+            hints: $hints
+        );
+
+        foreach ($data as $k => $v) {
+            $obj->$k = $v;
+        }
+
+        $obj->validate();
+        return $obj;
+    }
+
     public function validate(): void {
         foreach ([$this->costPriority, $this->speedPriority, $this->intelligencePriority] as $priority) {
             if ($priority !== null && ($priority < 0 || $priority > 1)) {
