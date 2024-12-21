@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -32,20 +33,19 @@ namespace Mcp\Types;
  * Request to call a tool
  */
 class CallToolRequest extends Request {
-    public function __construct(
-        public readonly string $name,
-        public ?ToolArguments $arguments = null,
-    ) {
-        parent::__construct('tools/call');
+    /**
+     * @param string $name The name of the tool to call
+     * @param array<string, mixed>|null $arguments Optional arguments for the tool call
+     */
+    public function __construct(string $name, ?array $arguments = null) {
+        $params = new CallToolRequestParams($name, $arguments);
+        parent::__construct('tools/call', $params);
     }
 
     public function validate(): void {
         parent::validate();
-        if (empty($this->name)) {
-            throw new \InvalidArgumentException('Tool name cannot be empty');
-        }
-        if ($this->arguments !== null) {
-            $this->arguments->validate();
+        if ($this->params instanceof CallToolRequestParams) {
+            $this->params->validate();
         }
     }
 }

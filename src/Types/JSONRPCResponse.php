@@ -43,7 +43,7 @@ class JSONRPCResponse implements McpModel {
     public function __construct(
         public readonly string $jsonrpc,
         public RequestId $id,
-        public Result $result,
+        public mixed $result,
     ) {}
 
     public function validate(): void {

@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -21,7 +22,7 @@
  * @license    MIT License
  * @link       https://github.com/logiscape/mcp-sdk-php
  *
- * Filename: Types/PaginatedRequestParams.php
+ * Filename: Types/CompleteRequestParams.php
  */
 
 declare(strict_types=1);
@@ -29,39 +30,41 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * Params for a paginated request:
+ * Params for CompleteRequest:
  * {
- *   cursor?: string;
- *   [key: string]: unknown
+ *   argument: CompletionArgument,
+ *   ref: PromptReference | ResourceReference
  * }
  */
-class PaginatedRequestParams extends RequestParams
+class CompleteRequestParams extends RequestParams
 {
-    public function __construct(?string $cursor = null)
-    {
-        // If you want to allow `_meta`, pass it to parent.
-        // For now, we assume there's no special Meta usage, so pass nothing.
-        parent::__construct(); 
-        $this->cursor = $cursor;
+    public function __construct(
+        public readonly CompletionArgument $argument,
+        public readonly PromptReference|ResourceReference $ref,
+        ?Meta $_meta = null
+    ) {
+        parent::__construct($_meta);
     }
-
-    public ?string $cursor = null;
 
     public function validate(): void
     {
-        parent::validate(); 
-        // No additional required fields
+        parent::validate(); // validates $_meta if present
+        
+        // Validate the CompletionArgument
+        $this->argument->validate();
+        
+        // Validate the reference
+        $this->ref->validate();
     }
 
     public function jsonSerialize(): mixed
     {
-        $data = [];
-
-        if ($this->cursor !== null) {
-            $data['cursor'] = $this->cursor;
-        }
-
-        // Merge in parent's extraFields + `_meta`
+        $data = [
+            'argument' => $this->argument,
+            'ref' => $this->ref,
+        ];
+        
+        // Merge extra fields, plus _meta if you use it
         return array_merge($data, parent::jsonSerialize());
     }
 }

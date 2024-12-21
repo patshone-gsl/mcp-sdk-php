@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -28,22 +29,23 @@ declare(strict_types=1);
 
 namespace Mcp\Types;
 
-/**
- * Request for completion options
- * argument: { name: string, value: string }
- * ref: PromptReference | ResourceReference
- */
-class CompleteRequest extends Request {
-    public function __construct(
-        public readonly CompletionArgument $argument,
-        public readonly PromptReference|ResourceReference $ref,
-    ) {
-        parent::__construct('completion/complete');
+class CompleteRequest extends Request
+{
+    /**
+     * Pass a CompleteRequestParams object to the base Request constructor.
+     */
+    public function __construct(CompleteRequestParams $params)
+    {
+        parent::__construct('completion/complete', $params);
     }
 
-    public function validate(): void {
+    public function validate(): void
+    {
         parent::validate();
-        $this->argument->validate();
-        $this->ref->validate();
+        // Base `Request` calls $this->params->validate()
+        // But if you want extra checks, you can do:
+        if ($this->params instanceof CompleteRequestParams) {
+            $this->params->validate();
+        }
     }
 }

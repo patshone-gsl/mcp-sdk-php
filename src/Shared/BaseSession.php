@@ -82,6 +82,13 @@ abstract class BaseSession {
     }
 
     /**
+     * Checks if the session is initialized.
+     */
+    public function isInitialized(): bool {
+        return $this->isInitialized;
+    }
+
+    /**
      * Closes the session and stops message processing.
      */
     public function close(): void {

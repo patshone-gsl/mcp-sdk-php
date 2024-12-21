@@ -152,9 +152,7 @@ class ClientSession extends BaseSession {
         }
 
         // Send InitializedNotification
-        $initializedNotification = new InitializedNotification(
-            method: "notifications/initialized"
-        );
+        $initializedNotification = new InitializedNotification();
         $this->sendNotification($initializedNotification);
 
         $this->initResult = $result;
@@ -189,7 +187,7 @@ class ClientSession extends BaseSession {
      */
     public function sendPing(): EmptyResult {
         $this->ensureInitialized();
-        $pingRequest = new PingRequest(method: "ping");
+        $pingRequest = new PingRequest();
         $this->logger->info('Sending PingRequest to server');
         return $this->sendRequest($pingRequest, EmptyResult::class);
     }
@@ -199,14 +197,12 @@ class ClientSession extends BaseSession {
         float $progress,
         ?float $total = null
     ): void {
-        $notification = new ProgressNotification(
-            method: "notifications/progress",
-            params: [
-                'progressToken' => $progressToken,
-                'progress' => $progress,
-                'total' => $total
-            ]
+        $params = new ProgressNotificationParams(
+            progressToken: $progressToken,
+            progress: $progress,
+            total: $total
         );
+        $notification = new ProgressNotification($params);
         $this->sendNotification($notification);
     }
 
@@ -221,10 +217,7 @@ class ClientSession extends BaseSession {
      */
     public function setLoggingLevel(LoggingLevel $level): EmptyResult {
         $this->ensureInitialized();
-        $setLevelRequest = new \Mcp\Types\SetLevelRequest(
-            method: "logging/setLevel",
-            params: ['level' => $level]
-        );
+        $setLevelRequest = new \Mcp\Types\SetLevelRequest($level);
         $this->logger->info('Setting logging level on server');
         return $this->sendRequest($setLevelRequest, EmptyResult::class);
     }
@@ -238,7 +231,7 @@ class ClientSession extends BaseSession {
      */
     public function listResources(): ListResourcesResult {
         $this->ensureInitialized();
-        $listResourcesRequest = new \Mcp\Types\ListResourcesRequest(method: "resources/list");
+        $listResourcesRequest = new \Mcp\Types\ListResourcesRequest();
         $this->logger->info('Requesting list of resources from server');
         return $this->sendRequest($listResourcesRequest, ListResourcesResult::class);
     }
@@ -254,10 +247,7 @@ class ClientSession extends BaseSession {
      */
     public function readResource(string $uri): ReadResourceResult {
         $this->ensureInitialized();
-        $readResourceRequest = new \Mcp\Types\ReadResourceRequest(
-            method: "resources/read",
-            params: ['uri' => $uri]
-        );
+        $readResourceRequest = new \Mcp\Types\ReadResourceRequest($uri);
         $this->logger->info("Requesting to read resource: $uri");
         return $this->sendRequest($readResourceRequest, ReadResourceResult::class);
     }
@@ -273,10 +263,7 @@ class ClientSession extends BaseSession {
      */
     public function subscribeResource(string $uri): EmptyResult {
         $this->ensureInitialized();
-        $subscribeRequest = new \Mcp\Types\SubscribeRequest(
-            method: "resources/subscribe",
-            params: ['uri' => $uri]
-        );
+        $subscribeRequest = new \Mcp\Types\SubscribeRequest($uri);
         $this->logger->info("Subscribing to resource: $uri");
         return $this->sendRequest($subscribeRequest, EmptyResult::class);
     }
@@ -292,10 +279,7 @@ class ClientSession extends BaseSession {
      */
     public function unsubscribeResource(string $uri): EmptyResult {
         $this->ensureInitialized();
-        $unsubscribeRequest = new \Mcp\Types\UnsubscribeRequest(
-            method: "resources/unsubscribe",
-            params: ['uri' => $uri]
-        );
+        $unsubscribeRequest = new \Mcp\Types\UnsubscribeRequest($uri);
         $this->logger->info("Unsubscribing from resource: $uri");
         return $this->sendRequest($unsubscribeRequest, EmptyResult::class);
     }
@@ -312,13 +296,7 @@ class ClientSession extends BaseSession {
      */
     public function callTool(string $name, ?array $arguments = null): CallToolResult {
         $this->ensureInitialized();
-        $callToolRequest = new \Mcp\Types\CallToolRequest(
-            method: "tools/call",
-            params: [
-                'name' => $name,
-                'arguments' => $arguments
-            ]
-        );
+        $callToolRequest = new \Mcp\Types\CallToolRequest($name, $arguments);
         $this->logger->info("Calling tool: $name with arguments: " . json_encode($arguments));
         return $this->sendRequest($callToolRequest, CallToolResult::class);
     }
@@ -332,7 +310,7 @@ class ClientSession extends BaseSession {
      */
     public function listPrompts(): ListPromptsResult {
         $this->ensureInitialized();
-        $listPromptsRequest = new \Mcp\Types\ListPromptsRequest(method: "prompts/list");
+        $listPromptsRequest = new \Mcp\Types\ListPromptsRequest();
         $this->logger->info('Requesting list of prompts from server');
         return $this->sendRequest($listPromptsRequest, ListPromptsResult::class);
     }
@@ -349,13 +327,8 @@ class ClientSession extends BaseSession {
      */
     public function getPrompt(string $name, ?array $arguments = null): GetPromptResult {
         $this->ensureInitialized();
-        $getPromptRequest = new \Mcp\Types\GetPromptRequest(
-            method: "prompts/get",
-            params: [
-                'name' => $name,
-                'arguments' => $arguments
-            ]
-        );
+        $params = new GetPromptRequestParams($name, $arguments);
+        $getPromptRequest = new \Mcp\Types\GetPromptRequest($params);
         $this->logger->info("Requesting prompt: $name with arguments: " . json_encode($arguments));
         return $this->sendRequest($getPromptRequest, GetPromptResult::class);
     }
@@ -375,13 +348,19 @@ class ClientSession extends BaseSession {
         array $argument
     ): CompleteResult {
         $this->ensureInitialized();
-        $completeRequest = new \Mcp\Types\CompleteRequest(
-            method: "completion/complete",
-            params: [
-                'ref' => $ref,
-                'argument' => $argument
-            ]
-        );
+
+        // Construct the CompletionArgument object
+        if (empty($argument['name']) || !isset($argument['value'])) {
+            throw new \InvalidArgumentException('CompleteRequest argument must have "name" and "value"');
+        }
+        $completionArg = new CompletionArgument($argument['name'], $argument['value']);
+
+        // Construct the params object
+        $params = new \Mcp\Types\CompleteRequestParams($completionArg, $ref);
+
+        // Construct the request
+        $completeRequest = new \Mcp\Types\CompleteRequest($params);
+
         $this->logger->info("Completing reference: " . json_encode($ref) . " with argument: " . json_encode($argument));
         return $this->sendRequest($completeRequest, CompleteResult::class);
     }
@@ -395,7 +374,7 @@ class ClientSession extends BaseSession {
      */
     public function listTools(): ListToolsResult {
         $this->ensureInitialized();
-        $listToolsRequest = new \Mcp\Types\ListToolsRequest(method: "tools/list");
+        $listToolsRequest = new \Mcp\Types\ListToolsRequest();
         $this->logger->info('Requesting list of tools from server');
         return $this->sendRequest($listToolsRequest, ListToolsResult::class);
     }
@@ -409,9 +388,7 @@ class ClientSession extends BaseSession {
      */
     public function sendRootsListChanged(): void {
         $this->ensureInitialized();
-        $rootsListChangedNotification = new RootsListChangedNotification(
-            method: "notifications/roots/list_changed"
-        );
+        $rootsListChangedNotification = new RootsListChangedNotification();
         $this->logger->info('Sending RootsListChangedNotification to server');
         $this->sendNotification($rootsListChangedNotification);
     }

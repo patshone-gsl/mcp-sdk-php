@@ -11,6 +11,7 @@
  * PHP conversion developed by:
  * - Josh Abbott
  * - Claude 3.5 Sonnet (Anthropic AI model)
+ * - ChatGPT o1 pro mode
  *
  * For the full copyright and license information, please view the LICENSE
  * file that was distributed with this source code.
@@ -21,7 +22,7 @@
  * @license    MIT License
  * @link       https://github.com/logiscape/mcp-sdk-php
  *
- * Filename: Types/RequestId.php
+ * Filename: Types/CallToolRequestParams.php
  */
 
 declare(strict_types=1);
@@ -29,29 +30,28 @@ declare(strict_types=1);
 namespace Mcp\Types;
 
 /**
- * A request ID can be a string or a number.
+ * Parameters for CallToolRequest
  */
-class RequestId implements McpModel {
+class CallToolRequestParams implements McpModel {
     use ExtraFieldsTrait;
 
     public function __construct(
-        public string|int $value
+        public readonly string $name,
+        public readonly ?array $arguments = null
     ) {}
 
     public function validate(): void {
-        // No specific validation besides non-empty. 
-        // The schema allows string or number. We consider both valid.
-        if ($this->value === '') {
-            throw new \InvalidArgumentException('RequestId cannot be empty');
+        if (empty($this->name)) {
+            throw new \InvalidArgumentException('Tool name cannot be empty in CallToolRequestParams.');
         }
+        // `arguments` can be any associative array; add validation if necessary
     }
 
     public function jsonSerialize(): mixed {
-        // Just serialize the value directly, plus any extra fields.
-        return $this->value;
-    }
-
-    public function getValue(): string|int {
-        return $this->value;
+        $data = ['name' => $this->name];
+        if ($this->arguments !== null) {
+            $data['arguments'] = $this->arguments;
+        }
+        return array_merge($data, $this->extraFields);
     }
 }

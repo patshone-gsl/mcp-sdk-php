@@ -172,21 +172,25 @@ class ClientRequest implements McpModel {
         if (empty($argumentData['name']) || !isset($argumentData['value'])) {
             throw new \InvalidArgumentException('CompleteRequest argument must have "name" and "value"');
         }
-    
+
         $argument = new CompletionArgument($argumentData['name'], $argumentData['value']);
-    
+
         $refData = $params['ref'] ?? [];
         if (!isset($refData['type'])) {
             throw new \InvalidArgumentException('CompleteRequest ref must have a "type"');
         }
-    
+
         $ref = match ($refData['type']) {
             'ref/prompt' => new PromptReference($refData['name'] ?? ''),
             'ref/resource' => new ResourceReference($refData['uri'] ?? ''),
             default => throw new \InvalidArgumentException("Unknown ref type: {$refData['type']}")
         };
-    
-        return new self(new CompleteRequest(argument: $argument, ref: $ref));
+
+        // Construct the new CompleteRequestParams
+        $reqParams = new CompleteRequestParams($argument, $ref);
+
+        // Now pass that to CompleteRequest
+        return new self(new CompleteRequest($reqParams));
     }
 
     private static function createSetLevelRequest(array $params): self {
@@ -250,16 +254,13 @@ class ClientRequest implements McpModel {
         if (empty($params['name'])) {
             throw new \InvalidArgumentException('CallToolRequest requires "name"');
         }
-    
-        $arguments = null;
-        if (isset($params['arguments'])) {
-            $arguments = new ToolArguments();
-            foreach ($params['arguments'] as $k => $v) {
-                $arguments->$k = $v;
-            }
+
+        $arguments = $params['arguments'] ?? null;
+        if ($arguments !== null && !is_array($arguments)) {
+            throw new \InvalidArgumentException('"arguments" must be an associative array if provided.');
         }
-    
-        return new self(new CallToolRequest(name: $params['name'], arguments: $arguments));
+
+        return new self(new CallToolRequest($params['name'], $arguments));
     }
 
     private static function createListToolsRequest(array $params): self {
