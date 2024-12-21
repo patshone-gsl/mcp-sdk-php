@@ -193,7 +193,13 @@ class ServerSession extends BaseSession {
      * @param ClientNotification $notification The incoming client notification.
      */
     public function handleNotification(ClientNotification $notification): void {
-        if ($notification->method === 'notifications/initialized') {
+        // 1) Extract the actual typed Notification (e.g., InitializedNotification)
+        $actualNotification = $notification->getNotification();
+
+        // 2) Retrieve the method from the typed notification
+        $method = $actualNotification->method;
+
+        if ($method === 'notifications/initialized') {
             $this->initializationState = InitializationState::Initialized;
             $this->logger->info('Client has completed initialization.');
             return;
@@ -203,10 +209,8 @@ class ServerSession extends BaseSession {
             throw new RuntimeException('Received notification before initialization was complete');
         }
 
-        // Handle other notifications here
-        // Example: $this->handleOtherNotification($notification);
-        // For demonstration, we'll just log the notification
-        $this->logger->info('Received notification: ' . $notification->method);
+        // Fallback for notifications you haven't specialized:
+        $this->logger->info('Received notification: ' . $method);
     }
 
     /**
