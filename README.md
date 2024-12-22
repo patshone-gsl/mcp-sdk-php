@@ -17,7 +17,7 @@ Based on the official [Python SDK](https://github.com/modelcontextprotocol/pytho
 You can install the package via composer:
 
 ```bash
-composer require logiscape/mcp-sdk-php
+composer require logiscape/mcp-sdk-php:1.0.0-alpha
 ```
 
 ### Requirements
