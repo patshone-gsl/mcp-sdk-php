@@ -109,13 +109,15 @@ class StdioTransport {
         stream_set_blocking($this->pipes[2], false);
 
         // Initialize read and write streams.
-        $readStream = new class($this->pipes[1], $this->logger) extends MemoryStream {
+        $readStream = new class($this->pipes[1], $this->logger, $this->process) extends MemoryStream {
             private $pipe;
             private LoggerInterface $logger;
+            private $process;
 
-            public function __construct($pipe, LoggerInterface $logger) {
+            public function __construct($pipe, LoggerInterface $logger, $process) {
                 $this->pipe = $pipe;
                 $this->logger = $logger;
+                $this->process = $process;
                 // Removed parent::__construct();
             }
 
@@ -214,13 +216,15 @@ class StdioTransport {
             }
         };
 
-        $writeStream = new class($this->pipes[0], $this->logger) extends MemoryStream {
+        $writeStream = new class($this->pipes[0], $this->logger, $this->process) extends MemoryStream {
             private $pipe;
             private LoggerInterface $logger;
+            private $process;
 
-            public function __construct($pipe, LoggerInterface $logger) {
+            public function __construct($pipe, LoggerInterface $logger, $process) {
                 $this->pipe = $pipe;
                 $this->logger = $logger;
+                $this->process = $process;
                 // Removed parent::__construct();
             }
 
@@ -237,6 +241,17 @@ class StdioTransport {
             public function send(mixed $message): void {
                 if (!$message instanceof JsonRpcMessage) {
                     throw new InvalidArgumentException('Only JsonRpcMessage instances can be sent.');
+                }
+
+                if (!is_resource($this->pipe)) {
+                    echo("Write pipe is no longer a valid resource\n");
+                    throw new RuntimeException('Write pipe is invalid');
+                }
+    
+                $status = proc_get_status($this->process);
+                if (!$status['running']) {
+                    echo("Server process has terminated. Exit code: " . $status['exitcode']."\n");
+                    throw new RuntimeException('Server process has terminated');
                 }
 
                 $innerMessage = $message->message;

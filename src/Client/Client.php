@@ -123,8 +123,8 @@ class Client {
             $this->session->initialize();
             $this->logger->info('Session initialized successfully');
 
-            // Start the receive loop to handle incoming messages
-            $this->startReceiveLoop();
+            // Currently only synchronous is supported, but this lays the groundwork for async to be implemented in the future
+            //$this->startReceiveLoop();
 
             return $this->session;
         } catch (\Exception $e) {
