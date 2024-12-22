@@ -77,6 +77,11 @@ class ServerRunner {
 
             // Connect the server with the session
             $this->server->setSession($session);
+
+            // Add handlers
+            $session->registerHandlers($this->server->getHandlers());
+            $session->registerNotificationHandlers($this->server->getNotificationHandlers());
+
             $session->start();
 
             $this->logger->info('Server started');

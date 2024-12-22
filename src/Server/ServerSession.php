@@ -153,6 +153,18 @@ class ServerSession extends BaseSession {
         return true;
     }
 
+    public function registerHandlers(array $handlers): void {
+        foreach ($handlers as $method => $callable) {
+            $this->requestHandlers[$method] = $callable;
+        }
+    }
+
+    public function registerNotificationHandlers(array $handlers): void {
+        foreach ($handlers as $method => $callable) {
+            $this->notificationHandlers[$method] = $callable;
+        }
+    }
+
     /**
      * Handle incoming requests. If it's the initialize request, handle it specially.
      * Otherwise, ensure initialization is complete before handling other requests.
@@ -178,9 +190,14 @@ class ServerSession extends BaseSession {
 
         // Now we integrate the method-specific handlers:
         if (isset($this->requestHandlers[$method])) {
+            $this->logger->info("Calling handler for method: $method");
             $handler = $this->requestHandlers[$method];
+            try {
             $result = $handler($params); // call the user-defined handler
             $responder->sendResponse($result);
+            } catch(\Throwable $e) {
+            	$this->logger->info("Handler Error: $e");
+            }
         } else {
             $this->logger->info("No registered handler for method: $method");
             // Possibly send an error response or ignore

@@ -152,6 +152,10 @@ class Server {
         $this->logger->debug("Registered handler for request method: $method");
     }
 
+    public function getHandlers(): array {
+        return $this->requestHandlers;
+    }
+
     /**
      * Registers a notification handler for a given method.
      *
@@ -160,6 +164,10 @@ class Server {
     public function registerNotificationHandler(string $method, callable $handler): void {
         $this->notificationHandlers[$method] = $handler;
         $this->logger->debug("Registered notification handler for method: $method");
+    }
+
+    public function getNotificationHandlers(): array {
+        return $this->notificationHandlers;
     }
 
     /**
