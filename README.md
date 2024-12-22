@@ -312,7 +312,6 @@ try {
 ```
 
 Save this as `debug_example_server.php`
-```
 
 ### Creating an MCP Client With Logging
 
