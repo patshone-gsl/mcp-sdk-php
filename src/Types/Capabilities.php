@@ -71,7 +71,10 @@ abstract class Capabilities implements McpModel {
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
+        $data = [];
+        if ($this->experimental !== null) {
+            $data['experimental'] = $this->experimental;
+        }
         return array_merge($data, $this->extraFields);
     }
 }
