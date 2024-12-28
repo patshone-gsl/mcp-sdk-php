@@ -128,8 +128,13 @@ abstract class BaseSession {
 
             if ($innerMessage instanceof JSONRPCError) {
                 // It's an error response
-                // Convert to McpError
-                throw new McpError($innerMessage->error);
+                // Convert JsonRpcErrorObject into ErrorData
+                $errorData = new \Mcp\Shared\ErrorData(
+                    code: $innerMessage->error->code,
+                    message: $innerMessage->error->message,
+                    data: $innerMessage->error->data
+                );
+                throw new McpError($errorData);
             } elseif ($innerMessage instanceof JSONRPCResponse) {
                 // It's a success response
                 // Validate the result using $resultType
