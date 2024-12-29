@@ -106,7 +106,7 @@ class Client {
                 // Use STDIO transport for commands
                 $this->logger->info("Starting process: {$commandOrUrl}");
                 $params = new StdioServerParameters($commandOrUrl, $args, $env);
-                $transport = new StdioTransport($params);
+                $transport = new StdioTransport($params, $this->logger);
             }
 
             // Establish connection and retrieve read/write streams
