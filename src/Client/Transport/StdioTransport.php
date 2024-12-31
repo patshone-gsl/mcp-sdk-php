@@ -261,8 +261,15 @@ class StdioTransport {
                     $payload = [
                         'jsonrpc' => '2.0',
                         'method' => $innerMessage->method,
-                        'params' => $innerMessage->params ?? []
                     ];
+
+                    if ($innerMessage->params !== null) {
+                        // We assume $innerMessage->params implements McpModel (and thus jsonSerialize).
+                        $serializedParams = $innerMessage->params->jsonSerialize();
+                        if (!empty($serializedParams)) {
+                            $payload['params'] = $serializedParams;
+                        }
+                    }
 
                     if ($innerMessage instanceof \Mcp\Types\JSONRPCRequest) {
                         $payload['id'] = (string)$innerMessage->id->value;

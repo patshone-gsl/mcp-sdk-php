@@ -46,7 +46,18 @@ class NotificationParams implements McpModel {
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
-        return array_merge($data, $this->extraFields);
+        $data = [];
+        // If $_meta is non-null, let it be serialized, and only add if not empty
+        if ($this->_meta !== null) {
+            $serializedMeta = $this->_meta->jsonSerialize();
+            if (!empty($serializedMeta)) {
+                $data['_meta'] = $serializedMeta;
+            }
+        }
+        // Only merge extraFields if they are non-empty
+        if (!empty($this->extraFields)) {
+            $data = array_merge($data, $this->extraFields);
+        }
+        return $data;
     }
 }

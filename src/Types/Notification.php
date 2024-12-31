@@ -49,7 +49,27 @@ abstract class Notification implements McpModel {
     }
 
     public function jsonSerialize(): mixed {
-        $data = get_object_vars($this);
-        return array_merge($data, $this->extraFields);
+        $data = [];
+
+        // Only include "method" if not empty
+        if (!empty($this->method)) {
+           $data['method'] = $this->method;
+        }
+
+        // If $this->params is not null, and not empty, we add it
+        if ($this->params !== null) {
+            // We'll let the params object decide how to omit its fields
+            $serializedParams = $this->params->jsonSerialize();
+            // Only include 'params' if there's something in it
+            if (!empty($serializedParams)) {
+                $data['params'] = $serializedParams;
+            }
+        }
+
+        // Merge extraFields only if non-empty
+        if (!empty($this->extraFields)) {
+            $data = array_merge($data, $this->extraFields);
+        }
+        return $data;
     }
 }
