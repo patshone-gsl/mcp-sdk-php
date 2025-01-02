@@ -35,15 +35,20 @@ namespace Mcp\Types;
  *   arguments?: { [key: string]: string };
  * }
  */
-class GetPromptRequestParams implements McpModel {
+class GetPromptRequestParams extends RequestParams {
     use ExtraFieldsTrait;
 
     public function __construct(
         public readonly string $name,
         public ?PromptArguments $arguments = null,
-    ) {}
+        ?Meta $_meta = null,
+    ) {
+        parent::__construct($_meta);
+    }
 
     public function validate(): void {
+        parent::validate(); // Validate base RequestParams fields
+        
         if (empty($this->name)) {
             throw new \InvalidArgumentException('Prompt name cannot be empty');
         }
@@ -57,6 +62,11 @@ class GetPromptRequestParams implements McpModel {
         if ($this->arguments !== null) {
             $data['arguments'] = $this->arguments;
         }
-        return array_merge($data, $this->extraFields);
+        
+        // Get base class serialized data (including _meta)
+        $baseData = parent::jsonSerialize();
+        
+        // Merge everything together
+        return array_merge($baseData, $data, $this->extraFields);
     }
 }

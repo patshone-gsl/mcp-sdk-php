@@ -197,12 +197,12 @@ class ClientSession extends BaseSession {
         float $progress,
         ?float $total = null
     ): void {
-        $params = new ProgressNotificationParams(
+        $params = new \Mcp\Types\ProgressNotificationParams(
             progressToken: $progressToken,
             progress: $progress,
             total: $total
         );
-        $notification = new ProgressNotification($params);
+        $notification = new \Mcp\Types\ProgressNotification($params);
         $this->sendNotification($notification);
     }
 
@@ -322,13 +322,32 @@ class ClientSession extends BaseSession {
      * @param array|null $arguments Optional arguments for the prompt.
      *
      * @throws RuntimeException If the session is not initialized or if sending the request fails.
+     * @throws InvalidArgumentException If any argument values are not strings.
      *
      * @return GetPromptResult The retrieved prompt.
      */
     public function getPrompt(string $name, ?array $arguments = null): GetPromptResult {
         $this->ensureInitialized();
-        $params = new GetPromptRequestParams($name, $arguments);
+
+        // Create PromptArguments object if arguments provided
+        $promptArgs = null;
+        if ($arguments !== null) {
+            try {
+                $promptArgs = new \Mcp\Types\PromptArguments($arguments);
+            } catch (\InvalidArgumentException $e) {
+                $this->logger->error('Invalid prompt arguments', [
+                    'name' => $name,
+                    'arguments' => $arguments,
+                    'error' => $e->getMessage()
+                ]);
+                throw $e;
+            }
+        }
+
+        // Create the request parameters
+        $params = new \Mcp\Types\GetPromptRequestParams($name, $promptArgs);
         $getPromptRequest = new \Mcp\Types\GetPromptRequest($params);
+
         $this->logger->info("Requesting prompt: $name with arguments: " . json_encode($arguments));
         return $this->sendRequest($getPromptRequest, GetPromptResult::class);
     }
@@ -353,7 +372,7 @@ class ClientSession extends BaseSession {
         if (empty($argument['name']) || !isset($argument['value'])) {
             throw new \InvalidArgumentException('CompleteRequest argument must have "name" and "value"');
         }
-        $completionArg = new CompletionArgument($argument['name'], $argument['value']);
+        $completionArg = new \Mcp\Types\CompletionArgument($argument['name'], $argument['value']);
 
         // Construct the params object
         $params = new \Mcp\Types\CompleteRequestParams($completionArg, $ref);
@@ -388,7 +407,7 @@ class ClientSession extends BaseSession {
      */
     public function sendRootsListChanged(): void {
         $this->ensureInitialized();
-        $rootsListChangedNotification = new RootsListChangedNotification();
+        $rootsListChangedNotification = new \Mcp\Types\RootsListChangedNotification();
         $this->logger->info('Sending RootsListChangedNotification to server');
         $this->sendNotification($rootsListChangedNotification);
     }

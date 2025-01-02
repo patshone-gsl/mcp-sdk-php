@@ -32,20 +32,29 @@ namespace Mcp\Types;
  * Params for ReadResourceRequest:
  * { uri: string }
  */
-class ReadResourceRequestParams implements McpModel {
+class ReadResourceRequestParams extends RequestParams {
     use ExtraFieldsTrait;
 
     public function __construct(
         public readonly string $uri,
-    ) {}
+        ?Meta $_meta = null
+    ) {
+        parent::__construct($_meta);
+    }
 
     public function validate(): void {
+        parent::validate();
+        
         if (empty($this->uri)) {
             throw new \InvalidArgumentException('Resource URI cannot be empty');
         }
     }
 
     public function jsonSerialize(): mixed {
-        return array_merge(['uri' => $this->uri], $this->extraFields);
+        return array_merge(
+            parent::jsonSerialize(),
+            ['uri' => $this->uri],
+            $this->extraFields
+        );
     }
 }

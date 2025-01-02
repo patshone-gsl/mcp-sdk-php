@@ -32,15 +32,20 @@ namespace Mcp\Types;
 /**
  * Parameters for CallToolRequest
  */
-class CallToolRequestParams implements McpModel {
+class CallToolRequestParams extends RequestParams {
     use ExtraFieldsTrait;
 
     public function __construct(
         public readonly string $name,
-        public readonly ?array $arguments = null
-    ) {}
+        public readonly ?array $arguments = null,
+        ?Meta $_meta = null
+    ) {
+        parent::__construct($_meta);
+    }
 
     public function validate(): void {
+        parent::validate();
+        
         if (empty($this->name)) {
             throw new \InvalidArgumentException('Tool name cannot be empty in CallToolRequestParams.');
         }
@@ -52,6 +57,12 @@ class CallToolRequestParams implements McpModel {
         if ($this->arguments !== null) {
             $data['arguments'] = $this->arguments;
         }
-        return array_merge($data, $this->extraFields);
+
+        // Merge with parent data (which includes _meta if present)
+        return array_merge(
+            parent::jsonSerialize(),
+            $data,
+            $this->extraFields
+        );
     }
 }
