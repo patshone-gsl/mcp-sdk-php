@@ -47,6 +47,7 @@ use Mcp\Types\ListPromptsResult;
 use Mcp\Types\TextContent;
 use Mcp\Types\Role;
 use Mcp\Types\GetPromptResult;
+use Mcp\Types\GetPromptRequestParams;
 
 // Create a server instance
 $server = new Server('example-server');
@@ -67,13 +68,17 @@ $server->registerHandler('prompts/list', function($params) {
     return new ListPromptsResult([$prompt]);
 });
 
-$server->registerHandler('prompts/get', function($params) {
-    $name = $params['name'] ?? '';
-    $arguments = $params['arguments'] ?? null;
+$server->registerHandler('prompts/get', function(GetPromptRequestParams $params) {
+
+    $name = $params->name;
+    $arguments = $params->arguments;
 
     if ($name !== 'example-prompt') {
         throw new \InvalidArgumentException("Unknown prompt: {$name}");
     }
+
+    // Get argument value safely
+    $argValue = $arguments ? $arguments->arg1 : 'none';
 
     $prompt = new Prompt(
         name: 'example-prompt',
@@ -92,11 +97,10 @@ $server->registerHandler('prompts/get', function($params) {
             new PromptMessage(
                 role: Role::USER,
                 content: new TextContent(
-                    text: 'Example prompt text'
+                    text: "Example prompt text with argument: $argValue"
                 )
             )
         ],
-        prompt: $prompt,
         description: 'Example prompt'
     );
 });
@@ -188,12 +192,6 @@ php example_client.php
 
 You can enable detailed logging on the client side, the server side, or both.
 
-To use logging install this additional package via composer:
-
-```bash
-composer require monolog/monolog
-```
-
 ### Creating an MCP Server With Logging
 
 Here's the previous example MCP server with detailed logging enabled:
@@ -202,7 +200,6 @@ Here's the previous example MCP server with detailed logging enabled:
 <?php
 
 // A version of the basic example server with extra logging
-// Before using run: "composer require monolog/monolog"
 
 // Enable comprehensive error logging
 ini_set('display_errors', 0);
@@ -222,6 +219,7 @@ use Mcp\Types\ListPromptsResult;
 use Mcp\Types\TextContent;
 use Mcp\Types\Role;
 use Mcp\Types\GetPromptResult;
+use Mcp\Types\GetPromptRequestParams;
 
 use Monolog\Logger;
 use Monolog\Handler\StreamHandler;
@@ -265,13 +263,17 @@ $server->registerHandler('prompts/list', function($params) {
     return new ListPromptsResult([$prompt]);
 });
 
-$server->registerHandler('prompts/get', function($params) {
-    $name = $params['name'] ?? '';
-    $arguments = $params['arguments'] ?? null;
+$server->registerHandler('prompts/get', function(GetPromptRequestParams $params) {
+
+    $name = $params->name;
+    $arguments = $params->arguments;
 
     if ($name !== 'example-prompt') {
         throw new \InvalidArgumentException("Unknown prompt: {$name}");
     }
+
+    // Get argument value safely
+    $argValue = $arguments ? $arguments->arg1 : 'none';
 
     $prompt = new Prompt(
         name: 'example-prompt',
@@ -290,11 +292,10 @@ $server->registerHandler('prompts/get', function($params) {
             new PromptMessage(
                 role: Role::USER,
                 content: new TextContent(
-                    text: 'Example prompt text'
+                    text: "Example prompt text with argument: $argValue"
                 )
             )
         ],
-        prompt: $prompt,
         description: 'Example prompt'
     );
 });
@@ -321,7 +322,6 @@ Here's how to create a client with detailed logging enabled:
 <?php
 
 // A version of the basic example client with extra logging and output
-// Before using run: "composer require monolog/monolog"
 
 // Enable comprehensive error reporting and logging
 ini_set('display_errors', 1);
@@ -418,6 +418,24 @@ Save this as `debug_example_client.php` and run it:
 ```bash
 php debug_example_client.php
 ```
+
+## MCP Web Client
+
+The "webclient" directory includes a web-based application for testing MCP servers. It was designed to demonstrate a MCP client capable of running in a typical web hosting environment.
+
+### Setting Up The Web Client
+
+To setup the web client, upload the contents of "webclient" to a web directory, such as public_html on a cPanel server. Ensure that the MCP SDK for PHP is installed in that same directory by running the Composer command found in the Installation section of this README.
+
+### Using The Web Client
+
+Once the web client has been uploaded to a web directory, navigate to index.php to open the interface. To connect to the included MCP test server, enter `php` in the Command field and `test_server.php` in the Arguments field and click `Connect to Server`. The interface allows you to test Prompts, Tools, and Resources. There is also a Debug Panel allowing you to view the JSON-RPC messages being sent between the Client and Server.
+
+### Web Client Notes And Limitations
+
+This MCP Web Client is intended for developers to test MCP servers, and it is not recommended to be made publicly accessible as a web interface without additional testing for security, error handling, and resource management.
+
+While MCP is usually implemented as a stateful session protocol, a typical PHP-based web hosting environment restricts long-running processes. To maximize compatibility, the MCP Web Client will initialize a new connection between the client and server for every request, and then close that connection after the request is complete.
 
 ## Documentation
 
