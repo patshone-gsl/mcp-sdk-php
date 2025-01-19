@@ -100,13 +100,17 @@ if (!file_exists(__DIR__ . '/vendor/autoload.php')) {
         <div class="server-panel">
             <h4>Server Connection</h4>
             <form id="connection-form" class="row g-3">
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <label for="command" class="form-label">Command</label>
                     <input type="text" class="form-control" id="command" required>
                 </div>
-                <div class="col-md-6">
+                <div class="col-md-4">
                     <label for="args" class="form-label">Arguments (one per line)</label>
                     <textarea class="form-control" id="args" rows="3"></textarea>
+                </div>
+                <div class="col-md-4">
+                    <label for="env" class="form-label">Environment Variables (KEY=VALUE, one per line)</label>
+                    <textarea class="form-control" id="env" rows="3"></textarea>
                 </div>
                 <div class="col-12">
                     <button type="submit" class="btn btn-primary" id="connect-btn">

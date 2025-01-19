@@ -87,18 +87,34 @@ class McpClientUI {
     async connect() {
         try {
             this.showLoading(true);
-            
+        
             const command = document.getElementById('command').value;
             const args = document.getElementById('args').value
                 .split('\n')
                 .filter(arg => arg.trim() !== '');
-
+                
+            // Parse environment variables
+            const envText = document.getElementById('env').value;
+            const env = {};
+            envText.split('\n')
+                .filter(line => line.trim() !== '')
+                .forEach(line => {
+                    const [key, ...valueParts] = line.split('=');
+                    if (key && valueParts.length > 0) {
+                        env[key.trim()] = valueParts.join('=').trim();
+                    }
+                });
+    
             const response = await fetch('connect.php', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ command, args })
+                body: JSON.stringify({ 
+                    command, 
+                    args,
+                    env: Object.keys(env).length > 0 ? env : undefined
+                })
             });
 
             const data = await response.json();
