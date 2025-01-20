@@ -58,10 +58,12 @@ class GetPromptRequestParams extends RequestParams {
     }
 
     public function jsonSerialize(): mixed {
-        $data = ['name' => $this->name];
-        if ($this->arguments !== null) {
-            $data['arguments'] = $this->arguments;
-        }
+        $data = [
+            'name' => $this->name,
+            // Return an empty object if arguments are null or empty
+            'arguments' => $this->arguments === null || empty($this->arguments) ? 
+                new \stdClass() : $this->arguments
+        ];
         
         // Get base class serialized data (including _meta)
         $baseData = parent::jsonSerialize();

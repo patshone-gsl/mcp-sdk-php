@@ -53,10 +53,12 @@ class CallToolRequestParams extends RequestParams {
     }
 
     public function jsonSerialize(): mixed {
-        $data = ['name' => $this->name];
-        if ($this->arguments !== null) {
-            $data['arguments'] = $this->arguments;
-        }
+        $data = [
+            'name' => $this->name,
+            // Return an empty object if arguments are null or empty
+            'arguments' => $this->arguments === null || empty($this->arguments) ? 
+                new \stdClass() : $this->arguments
+        ];
 
         // Merge with parent data (which includes _meta if present)
         return array_merge(

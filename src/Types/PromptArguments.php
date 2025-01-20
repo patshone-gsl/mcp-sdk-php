@@ -53,6 +53,6 @@ class PromptArguments implements McpModel {
     }
 
     public function jsonSerialize(): mixed {
-        return $this->extraFields;
+        return empty($this->extraFields) ? new \stdClass() : $this->extraFields;
     }
 }
