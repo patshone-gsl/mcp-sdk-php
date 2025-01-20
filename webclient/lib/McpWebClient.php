@@ -85,7 +85,7 @@ class McpWebClient {
             ]);
 
             // Cleanup test connection
-            $session->close();
+            $this->client->close();
 
             return [
                 'sessionId' => $sessionId,
@@ -159,7 +159,7 @@ class McpWebClient {
                 ];
             } finally {
                 // Always cleanup connection
-                $session->close();
+                $this->client->close();
             }
         } catch (\Exception $e) {
             $this->logger->error("Operation failed: " . $e->getMessage());

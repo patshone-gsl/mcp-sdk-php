@@ -52,6 +52,9 @@ class Client {
     /** @var ClientSession|null */
     private ?ClientSession $session = null;
 
+    /** @var StdioTransport|null */
+    private ?StdioTransport $transport = null;
+
     /** @var LoggerInterface */
     private LoggerInterface $logger;
 
@@ -107,6 +110,7 @@ class Client {
                 $this->logger->info("Starting process: {$commandOrUrl}");
                 $params = new StdioServerParameters($commandOrUrl, $args, $env);
                 $transport = new StdioTransport($params, $this->logger);
+                $this->transport = $transport;
             }
 
             // Establish connection and retrieve read/write streams
@@ -222,6 +226,11 @@ class Client {
             $this->session->close();
             $this->logger->info('Session closed successfully');
             $this->session = null;
+        }
+        if ($this->transport) {
+            $this->transport->close();
+            $this->logger->info('Transport closed successfully');
+            $this->transport = null;
         }
     }
 }
