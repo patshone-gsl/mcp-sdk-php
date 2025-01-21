@@ -67,6 +67,6 @@ class ClientCapabilities extends Capabilities {
         if ($this->sampling !== null) {
             $data['sampling'] = $this->sampling;
         }
-        return $data;
+        return empty($data) ? new \stdClass() : $data;
     }
 }

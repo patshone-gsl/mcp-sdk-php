@@ -12,12 +12,14 @@ This PHP SDK implements the full MCP specification, making it easy to:
 
 Based on the official [Python SDK](https://github.com/modelcontextprotocol/python-sdk) for the Model Context Protocol.
 
+This SDK is primarily targeted at developers working on frontier AI integration solutions. Some functionality may be incomplete and implementations should undergo thorough testing and security review by experienced developers prior to production use.
+
 ## Installation
 
 You can install the package via composer:
 
 ```bash
-composer require logiscape/mcp-sdk-php:1.0.0-alpha.2
+composer require logiscape/mcp-sdk-php
 ```
 
 ### Requirements

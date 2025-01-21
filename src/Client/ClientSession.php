@@ -132,7 +132,7 @@ class ClientSession extends BaseSession {
             new InitializeRequestParams(
                 protocolVersion: Version::LATEST_PROTOCOL_VERSION,
                 capabilities: new ClientCapabilities(
-                    roots: new ClientRootsCapability(listChanged: true)
+                    //roots: new ClientRootsCapability(listChanged: true)
                 ),
                 clientInfo: new Implementation(
                     name: 'mcp-client',
