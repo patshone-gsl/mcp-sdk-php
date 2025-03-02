@@ -13,7 +13,9 @@
         "psr/log": "^3.0",
         "ext-curl": "*",
         "cboden/ratchet": "^0.4",
-        "monolog/monolog": "^3.0"
+        "monolog/monolog": "^3.0",
+        "symfony/http-foundation": "^2.6|^3.0|^4.0|^5.0|^6.0|^v7.0",
+        "symfony/routing": "^2.6|^3.0|^4.0|^5.0|^6.0|^7.0"
     },
     "suggest": {
         "ext-pcntl": "For better process handling in CLI environments"
